@@ -89,13 +89,13 @@ export const authConfig: NextAuthConfig = {
                 type: account.type,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId,
-                refresh_token: account.refresh_token,
-                access_token: account.access_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
-                session_state: account.session_state,
+                refresh_token: account.refresh_token as string | null | undefined,
+                access_token: account.access_token as string | null | undefined,
+                expires_at: account.expires_at as number | null | undefined,
+                token_type: account.token_type as string | null | undefined,
+                scope: account.scope as string | null | undefined,
+                id_token: account.id_token as string | null | undefined,
+                session_state: account.session_state as string | null | undefined,
               }
             })
           }
@@ -106,7 +106,7 @@ export const authConfig: NextAuthConfig = {
             data: {
               name: user.name || existingUser.name,
               image: user.image || existingUser.image,
-              emailVerified: user.emailVerified || existingUser.emailVerified,
+              emailVerified: ('emailVerified' in user ? user.emailVerified : null) || existingUser.emailVerified,
             }
           })
 
