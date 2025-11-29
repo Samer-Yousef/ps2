@@ -27,7 +27,7 @@ export async function GET() {
     })
 
     return NextResponse.json({
-      users: users.map(u => ({
+      users: users.map((u: typeof users[0]) => ({
         ...u,
         passwordHash: u.passwordHash ? 'EXISTS' : null,
         image: u.image ? u.image.substring(0, 50) + '...' : null,
@@ -36,8 +36,8 @@ export async function GET() {
       summary: {
         totalUsers: users.length,
         totalAccounts: accounts.length,
-        oauthUsers: users.filter(u => !u.passwordHash).length,
-        credentialUsers: users.filter(u => u.passwordHash).length,
+        oauthUsers: users.filter((u: typeof users[0]) => !u.passwordHash).length,
+        credentialUsers: users.filter((u: typeof users[0]) => u.passwordHash).length,
       }
     })
   } catch (error) {
