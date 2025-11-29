@@ -19,7 +19,7 @@ interface VectorEntry {
 // Simple text to vector (mock embedding - in production use a real model)
 function textToVector(text: string, dimensions = 384): number[] {
   const vector: number[] = [];
-  const seed = text.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const seed = text.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
   
   for (let i = 0; i < dimensions; i++) {
     // Simple pseudo-random based on text
@@ -28,7 +28,7 @@ function textToVector(text: string, dimensions = 384): number[] {
   }
   
   // Normalize
-  const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
+  const magnitude = Math.sqrt(vector.reduce((sum: number, val: number) => sum + val * val, 0));
   return vector.map((v: number) => v / magnitude);
 }
 

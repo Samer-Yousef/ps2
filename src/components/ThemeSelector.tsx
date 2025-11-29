@@ -25,7 +25,7 @@ export function ThemeSelector() {
     { value: 'sepia', label: 'Sepia', icon: '📄' },
   ] as const;
 
-  const currentTheme = themes.find(t => t.value === theme) || themes[0];
+  const currentTheme = themes.find((t: typeof themes[number]) => t.value === theme) || themes[0];
 
   return (
     <div className="relative" ref={dropdownRef}>
