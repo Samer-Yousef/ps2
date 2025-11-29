@@ -1,0 +1,95 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// User model for authentication
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String?        // Optional - OAuth users don't have passwords
+  name          String?
+  emailVerified DateTime?
+  image         String?        // Profile image from OAuth providers
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  history       SlideHistory[]
+  favorites     Favorite[]
+}
+
+// OAuth account connections (Google, GitHub, etc.)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// Sessions for NextAuth
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Verification tokens for email verification
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Slide history tracking
+model SlideHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  caseId    String
+  viewedAt  DateTime @default(now())
+  metadata  String?  // JSON stored as string in SQLite
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([caseId])
+}
+
+// Favorite slides
+model Favorite {
+  id       String   @id @default(cuid())
+  userId   String
+  caseId   String
+  addedAt  DateTime @default(now())
+  notes    String?
+  metadata String?  // JSON stored as string in SQLite
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, caseId]) // Prevent duplicate favorites
+  @@index([userId])
+  @@index([caseId])
+}

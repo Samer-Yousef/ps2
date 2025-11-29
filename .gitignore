@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# Local development files
+nul
+dev.db
+check-db.js
+
+# Large data files (transfer to server separately)
+public/pathology_vectordb.json
+public/pathology_vectordb_compressed.json
+public/onnx-model/model.onnx
