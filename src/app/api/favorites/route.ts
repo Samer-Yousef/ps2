@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     })
 
     // Parse metadata JSON strings
-    const favoritesWithMetadata = favorites.map(f => ({
+    const favoritesWithMetadata = favorites.map((f: typeof favorites[0]) => ({
       ...f,
       metadata: f.metadata ? JSON.parse(f.metadata) : null
     }))

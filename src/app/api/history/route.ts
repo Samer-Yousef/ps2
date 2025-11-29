@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     })
 
     // Parse metadata JSON strings
-    const historyWithMetadata = history.map(h => ({
+    const historyWithMetadata = history.map((h: typeof history[0]) => ({
       ...h,
       metadata: h.metadata ? JSON.parse(h.metadata) : null
     }))

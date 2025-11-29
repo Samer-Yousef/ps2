@@ -29,7 +29,7 @@ function textToVector(text: string, dimensions = 384): number[] {
   
   // Normalize
   const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
-  return vector.map(v => v / magnitude);
+  return vector.map((v: number) => v / magnitude);
 }
 
 // Cosine similarity
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
     const queryVector = textToVector(query);
     
     // Calculate similarities
-    const results = dbData.map(entry => ({
+    const results = dbData.map((entry: VectorEntry) => ({
       ...entry,
       similarity: cosineSimilarity(queryVector, entry.vector),
       // Don't send full vector back to client
