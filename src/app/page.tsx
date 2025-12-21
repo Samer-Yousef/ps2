@@ -525,31 +525,6 @@ export default function Home() {
                 </button>
               </>
             )}
-
-            {/* Search Mode Toggle - Always visible */}
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] bg-white dark:bg-gray-700 sepia:bg-[#faf8f3]">
-              <span className="text-xs text-gray-600 dark:text-gray-400 sepia:text-gray-700 font-medium">Mode:</span>
-              <button
-                onClick={() => setSearchMode('client')}
-                className={`px-3 py-1 text-xs rounded transition-colors font-medium ${
-                  searchMode === 'client'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-600 sepia:bg-[#e8dfc8] text-gray-700 dark:text-gray-300 sepia:text-gray-800 hover:bg-gray-300 dark:hover:bg-gray-500 sepia:hover:bg-[#ddd0b8]'
-                }`}
-              >
-                Client Cache
-              </button>
-              <button
-                onClick={() => setSearchMode('api')}
-                className={`px-3 py-1 text-xs rounded transition-colors font-medium ${
-                  searchMode === 'api'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-200 dark:bg-gray-600 sepia:bg-[#e8dfc8] text-gray-700 dark:text-gray-300 sepia:text-gray-800 hover:bg-gray-300 dark:hover:bg-gray-500 sepia:hover:bg-[#ddd0b8]'
-                }`}
-              >
-                API
-              </button>
-            </div>
           </div>
         </div>
 
@@ -627,53 +602,6 @@ export default function Home() {
                       {organ}
                     </button>
                   ))}
-                </div>
-              )}
-
-              {/* Performance Metrics */}
-              {performanceMetrics && searched && (
-                <div className="mb-3 p-3 rounded-lg border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] bg-gray-50 dark:bg-gray-800 sepia:bg-[#faf8f3]">
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 sepia:text-gray-800">
-                        Performance
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        performanceMetrics.mode === 'client'
-                          ? 'bg-blue-600/20 text-blue-700 dark:text-blue-400 sepia:text-blue-800'
-                          : 'bg-purple-600/20 text-purple-700 dark:text-purple-400 sepia:text-purple-800'
-                      }`}>
-                        {performanceMetrics.mode === 'client' ? 'Client Cache' : 'API'}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-6 text-sm flex-wrap">
-                      {performanceMetrics.embeddingTime !== undefined && (
-                        <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
-                          Embedding: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-mono font-semibold">{performanceMetrics.embeddingTime.toFixed(0)}ms</span>
-                        </div>
-                      )}
-                      <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
-                        Search: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-mono font-semibold">{performanceMetrics.searchTime.toFixed(0)}ms</span>
-                      </div>
-                      <div className="text-gray-700 dark:text-gray-300 sepia:text-gray-800 font-medium">
-                        Server Total: <span className="text-blue-600 dark:text-blue-400 sepia:text-blue-700 font-mono font-bold">{performanceMetrics.totalTime.toFixed(0)}ms</span>
-                      </div>
-                      {performanceMetrics.networkTime !== undefined && (
-                        <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
-                          Network: <span className="text-orange-600 dark:text-orange-400 sepia:text-orange-700 font-mono font-semibold">{performanceMetrics.networkTime.toFixed(0)}ms</span>
-                        </div>
-                      )}
-                      {performanceMetrics.clientTotalTime !== undefined && (
-                        <div className="text-gray-700 dark:text-gray-300 sepia:text-gray-800 font-medium">
-                          Client Total: <span className="text-green-600 dark:text-green-400 sepia:text-green-700 font-mono font-bold">{performanceMetrics.clientTotalTime.toFixed(0)}ms</span>
-                        </div>
-                      )}
-                      <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
-                        Results: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-semibold">{performanceMetrics.resultCount.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               )}
 
