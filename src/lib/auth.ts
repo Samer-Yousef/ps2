@@ -7,6 +7,7 @@ import { prisma } from "./prisma"
 // Auth config with Google OAuth and Credentials
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(prisma) as any,
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
