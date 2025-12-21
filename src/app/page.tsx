@@ -375,7 +375,7 @@ export default function Home() {
       } else {
         // API mode: Track complete end-to-end time including network
         const clientStartTime = performance.now();
-        const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=24000`);
+        const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=20`);
         const networkTime = performance.now() - clientStartTime;
 
         const data = await response.json();
