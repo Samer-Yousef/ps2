@@ -380,13 +380,23 @@ export default function Home() {
           return;
         }
       } else {
-        // API mode: always use server
+        // API mode: Track complete end-to-end time including network
+        const clientStartTime = performance.now();
         const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=24000`);
+        const networkTime = performance.now() - clientStartTime;
+
         const data = await response.json();
 
         if (data.results) {
           setResults(data.results);
-          setPerformanceMetrics(data.performance);
+
+          // Enhance performance metrics with client-side telemetry
+          const clientTotalTime = performance.now() - clientStartTime;
+          setPerformanceMetrics({
+            ...data.performance,
+            networkTime: networkTime,
+            clientTotalTime: clientTotalTime
+          });
         }
         setLoading(false);
       }
@@ -407,10 +417,17 @@ export default function Home() {
     }
   };
 
-  // Perform search based on user query or secret query
+  // Perform search based on user query or secret query with debouncing
   useEffect(() => {
     const searchQuery = query.trim() || secretSearchQuery;
-    performSearch(searchQuery);
+
+    // Debounce: wait 500ms after user stops typing before searching
+    const timeoutId = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 500);
+
+    // Cancel previous timeout if user keeps typing
+    return () => clearTimeout(timeoutId);
   }, [query, secretSearchQuery, performSearch]);
 
   // Web Worker setup for client-side searching
@@ -689,7 +706,7 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-6 text-sm flex-wrap">
                       {performanceMetrics.embeddingTime !== undefined && (
                         <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
                           Embedding: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-mono font-semibold">{performanceMetrics.embeddingTime.toFixed(0)}ms</span>
@@ -699,8 +716,18 @@ export default function Home() {
                         Search: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-mono font-semibold">{performanceMetrics.searchTime.toFixed(0)}ms</span>
                       </div>
                       <div className="text-gray-700 dark:text-gray-300 sepia:text-gray-800 font-medium">
-                        Total: <span className="text-green-600 dark:text-green-400 sepia:text-green-700 font-mono font-bold">{performanceMetrics.totalTime.toFixed(0)}ms</span>
+                        Server Total: <span className="text-blue-600 dark:text-blue-400 sepia:text-blue-700 font-mono font-bold">{performanceMetrics.totalTime.toFixed(0)}ms</span>
                       </div>
+                      {performanceMetrics.networkTime !== undefined && (
+                        <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
+                          Network: <span className="text-orange-600 dark:text-orange-400 sepia:text-orange-700 font-mono font-semibold">{performanceMetrics.networkTime.toFixed(0)}ms</span>
+                        </div>
+                      )}
+                      {performanceMetrics.clientTotalTime !== undefined && (
+                        <div className="text-gray-700 dark:text-gray-300 sepia:text-gray-800 font-medium">
+                          Client Total: <span className="text-green-600 dark:text-green-400 sepia:text-green-700 font-mono font-bold">{performanceMetrics.clientTotalTime.toFixed(0)}ms</span>
+                        </div>
+                      )}
                       <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
                         Results: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-semibold">{performanceMetrics.resultCount.toLocaleString()}</span>
                       </div>

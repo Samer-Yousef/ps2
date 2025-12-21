@@ -11,10 +11,13 @@ export interface SearchResult {
 
 export interface PerformanceMetrics {
   mode: 'client' | 'api';
-  searchTime: number;      // Core search execution time (ms)
-  embeddingTime?: number;  // Text-to-vector time (ms)
-  totalTime: number;       // End-to-end time (ms)
+  searchTime: number;         // Core search execution time (ms)
+  embeddingTime?: number;     // Text-to-vector time (ms)
+  totalTime: number;          // Server-side or worker total time (ms)
   resultCount: number;
+  // Client-side telemetry (for API mode)
+  networkTime?: number;       // Network round-trip time (ms)
+  clientTotalTime?: number;   // Complete end-to-end time including network (ms)
 }
 
 export interface SearchResponse {
