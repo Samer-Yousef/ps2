@@ -83,7 +83,7 @@ export default function Home() {
   const [selectedOrgans, setSelectedOrgans] = useState<Set<string>>(new Set());
   const [secretSearchQuery, setSecretSearchQuery] = useState(''); // For system-only search mode
   const [favorites, setFavorites] = useState<Set<string>>(new Set()); // Track user's favorite case IDs
-  const [searchMode, setSearchMode] = useState<'client' | 'api'>('client'); // Toggle between client cache and API
+  const [searchMode, setSearchMode] = useState<'client' | 'api'>('api'); // Toggle between client cache and API - defaults to API until worker loads
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null); // Performance tracking
 
   // Helper to get value with AI fallback
@@ -266,18 +266,12 @@ export default function Home() {
     setSelectedOrgans(newSelected);
   };
 
-  // Load search mode preference from localStorage
+  // Auto-switch to client mode when worker is ready
   useEffect(() => {
-    const saved = localStorage.getItem('searchMode');
-    if (saved === 'client' || saved === 'api') {
-      setSearchMode(saved);
+    if (workerReady && searchMode === 'api') {
+      setSearchMode('client');
     }
-  }, []);
-
-  // Save search mode preference to localStorage
-  useEffect(() => {
-    localStorage.setItem('searchMode', searchMode);
-  }, [searchMode]);
+  }, [workerReady, searchMode]);
 
   // Fetch user's favorites on mount/login
   useEffect(() => {
@@ -417,18 +411,21 @@ export default function Home() {
     }
   };
 
-  // Perform search based on user query or secret query with debouncing
+  // Perform search based on user query or secret query with conditional debouncing
   useEffect(() => {
     const searchQuery = query.trim() || secretSearchQuery;
 
-    // Debounce: wait 500ms after user stops typing before searching
+    // Only debounce for API mode (500ms delay)
+    // Client mode searches immediately (no delay)
+    const debounceDelay = searchMode === 'api' ? 500 : 0;
+
     const timeoutId = setTimeout(() => {
       performSearch(searchQuery);
-    }, 500);
+    }, debounceDelay);
 
     // Cancel previous timeout if user keeps typing
     return () => clearTimeout(timeoutId);
-  }, [query, secretSearchQuery, performSearch]);
+  }, [query, secretSearchQuery, performSearch, searchMode]);
 
   // Web Worker setup for client-side searching
   const workerRef = useRef<Worker | null>(null);
