@@ -218,6 +218,7 @@ self.addEventListener('message', async (ev) => {
     }
     const q = msg.query || '';
     const limit = msg.limit || 10;
+    const searchId = msg.searchId; // Get searchId from message
     try {
       // Track total time
       const totalStartTime = performance.now();
@@ -296,6 +297,7 @@ self.addEventListener('message', async (ev) => {
 
       self.postMessage({
         type: 'results',
+        searchId: searchId, // Include searchId in response
         query: q,
         results: top,
         performance: {
@@ -307,7 +309,7 @@ self.addEventListener('message', async (ev) => {
         }
       });
     } catch (err) {
-      self.postMessage({ type: 'results', error: String(err) });
+      self.postMessage({ type: 'results', searchId: searchId, error: String(err) });
     }
   }
 });
