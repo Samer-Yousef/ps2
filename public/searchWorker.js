@@ -219,8 +219,93 @@ self.addEventListener('message', async (ev) => {
     const q = msg.query || '';
     const limit = msg.limit || 10;
     try {
-      const res = await search(q, limit);
-      self.postMessage({ type: 'results', query: q, results: res.results });
+      // Track total time
+      const totalStartTime = performance.now();
+
+      // Track embedding time
+      const embeddingStart = performance.now();
+      const qv = await textToVector(q);
+      const embeddingTime = performance.now() - embeddingStart;
+
+      // Track search time (similarity calculation and sorting)
+      const searchStart = performance.now();
+      const queryLower = q.toLowerCase();
+      const queryWords = queryLower.split(/\s+/).filter(w => w.length > 2);
+
+      const scores = new Array(numEntries);
+      for (let i = 0; i < numEntries; i++) {
+        const sim = cosineSimilarityFlat(qv, vectors, i, dim);
+        const entry = entries[i];
+        const m = entry.metadata || {};
+
+        // Weighted keyword boosting across multiple fields
+        let boost = 0;
+
+        // Helper to check for word matches
+        const checkField = (fieldValue, weight) => {
+          if (!fieldValue) return 0;
+          const fieldLower = String(fieldValue).toLowerCase();
+          let matchBoost = 0;
+          for (const word of queryWords) {
+            if (fieldLower.includes(word)) {
+              matchBoost += weight;
+            }
+          }
+          return matchBoost;
+        };
+
+        // Check primary diagnosis fields (highest weight)
+        boost += checkField(m.extracted_diagnosis, 0.20);
+        boost += checkField(m.essential_diagnosis, 0.18);
+
+        // Check other important fields
+        boost += checkField(m.variant, 0.12);
+        boost += checkField(m.lineage, 0.10);
+        boost += checkField(m.organ, 0.08);
+        boost += checkField(m.microscopic, 0.06);
+
+        // Fallback to top-level fields if metadata missing
+        boost += checkField(entry.diagnosis, 0.15);
+        boost += checkField(entry.organ, 0.05);
+        boost += checkField(entry.system, 0.05);
+
+        // Cap total boost at 0.35 (35%)
+        boost = Math.min(boost, 0.35);
+
+        const boostedSim = Math.min(sim + boost, 1.0);
+        scores[i] = { idx: i, similarity: boostedSim };
+      }
+
+      scores.sort((a, b) => b.similarity - a.similarity);
+      const top = scores.slice(0, limit).map(s => {
+        const entry = entries[s.idx];
+        return {
+          id: entry.id,
+          text: entry.text,
+          diagnosis: entry.diagnosis,
+          organ: entry.organ,
+          system: entry.system,
+          site: entry.site,
+          similarity: s.similarity,
+          metadata: entry.metadata,
+        };
+      });
+
+      const searchTime = performance.now() - searchStart;
+      const totalTime = performance.now() - totalStartTime;
+
+      self.postMessage({
+        type: 'results',
+        query: q,
+        results: top,
+        performance: {
+          mode: 'client',
+          embeddingTime: embeddingTime,
+          searchTime: searchTime,
+          totalTime: totalTime,
+          resultCount: top.length
+        }
+      });
     } catch (err) {
       self.postMessage({ type: 'results', error: String(err) });
     }

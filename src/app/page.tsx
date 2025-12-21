@@ -5,6 +5,7 @@ import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { ThemeSelector } from '@/components/ThemeSelector';
 import { useSearch } from '@/components/SearchProvider';
+import { PerformanceMetrics } from '@/types/search';
 
 interface SearchResult {
   id: number;
@@ -82,6 +83,8 @@ export default function Home() {
   const [selectedOrgans, setSelectedOrgans] = useState<Set<string>>(new Set());
   const [secretSearchQuery, setSecretSearchQuery] = useState(''); // For system-only search mode
   const [favorites, setFavorites] = useState<Set<string>>(new Set()); // Track user's favorite case IDs
+  const [searchMode, setSearchMode] = useState<'client' | 'api'>('client'); // Toggle between client cache and API
+  const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null); // Performance tracking
 
   // Helper to get value with AI fallback
   const getWithFallback = (primary: any, fallback: any): string => {
@@ -263,6 +266,19 @@ export default function Home() {
     setSelectedOrgans(newSelected);
   };
 
+  // Load search mode preference from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('searchMode');
+    if (saved === 'client' || saved === 'api') {
+      setSearchMode(saved);
+    }
+  }, []);
+
+  // Save search mode preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('searchMode', searchMode);
+  }, [searchMode]);
+
   // Fetch user's favorites on mount/login
   useEffect(() => {
     if (session?.user) {
@@ -343,6 +359,7 @@ export default function Home() {
     if (!searchQuery.trim()) {
       setResults([]);
       setSearched(false);
+      setPerformanceMetrics(null);
       return;
     }
 
@@ -350,25 +367,36 @@ export default function Home() {
     setSearched(true);
 
     try {
-      if (workerReady && workerRef.current) {
-        workerRef.current.postMessage({ type: 'search', query: searchQuery, limit: 24000 });
-        return;
-      }
+      if (searchMode === 'client') {
+        // Client mode: use worker if ready
+        if (workerReady && workerRef.current) {
+          workerRef.current.postMessage({ type: 'search', query: searchQuery, limit: 24000 });
+          // Performance metrics will be set in worker onmessage handler
+          return;
+        } else {
+          // Worker not ready - show initialization status
+          console.warn('Worker not ready, waiting for initialization');
+          setLoading(false);
+          return;
+        }
+      } else {
+        // API mode: always use server
+        const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=24000`);
+        const data = await response.json();
 
-      // Fallback to server API if worker not ready
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&limit=24000`);
-      const data = await response.json();
-
-      if (data.results) {
-        setResults(data.results);
+        if (data.results) {
+          setResults(data.results);
+          setPerformanceMetrics(data.performance);
+        }
+        setLoading(false);
       }
     } catch (error) {
-      // API fallback error - will show no results
+      console.error('Search error:', error);
       setResults([]);
-    } finally {
+      setPerformanceMetrics(null);
       setLoading(false);
     }
-  }, [workerReady]);
+  }, [searchMode, workerReady]);
 
   // Handle user typing - clear secret search when user types
   const handleQueryChange = (newQuery: string) => {
@@ -415,8 +443,10 @@ export default function Home() {
           if (msg.error) {
             // Worker search error - will be displayed to user via UI
             setResults([]);
+            setPerformanceMetrics(null);
           } else {
             setResults(msg.results || []);
+            setPerformanceMetrics(msg.performance || null);
           }
           setLoading(false);
         }
@@ -537,6 +567,31 @@ export default function Home() {
                 </button>
               </>
             )}
+
+            {/* Search Mode Toggle - Always visible */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] bg-white dark:bg-gray-700 sepia:bg-[#faf8f3]">
+              <span className="text-xs text-gray-600 dark:text-gray-400 sepia:text-gray-700 font-medium">Mode:</span>
+              <button
+                onClick={() => setSearchMode('client')}
+                className={`px-3 py-1 text-xs rounded transition-colors font-medium ${
+                  searchMode === 'client'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-600 sepia:bg-[#e8dfc8] text-gray-700 dark:text-gray-300 sepia:text-gray-800 hover:bg-gray-300 dark:hover:bg-gray-500 sepia:hover:bg-[#ddd0b8]'
+                }`}
+              >
+                Client Cache
+              </button>
+              <button
+                onClick={() => setSearchMode('api')}
+                className={`px-3 py-1 text-xs rounded transition-colors font-medium ${
+                  searchMode === 'api'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-200 dark:bg-gray-600 sepia:bg-[#e8dfc8] text-gray-700 dark:text-gray-300 sepia:text-gray-800 hover:bg-gray-300 dark:hover:bg-gray-500 sepia:hover:bg-[#ddd0b8]'
+                }`}
+              >
+                API
+              </button>
+            </div>
           </div>
         </div>
 
@@ -614,6 +669,43 @@ export default function Home() {
                       {organ}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {/* Performance Metrics */}
+              {performanceMetrics && searched && (
+                <div className="mb-3 p-3 rounded-lg border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] bg-gray-50 dark:bg-gray-800 sepia:bg-[#faf8f3]">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 sepia:text-gray-800">
+                        Performance
+                      </span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                        performanceMetrics.mode === 'client'
+                          ? 'bg-blue-600/20 text-blue-700 dark:text-blue-400 sepia:text-blue-800'
+                          : 'bg-purple-600/20 text-purple-700 dark:text-purple-400 sepia:text-purple-800'
+                      }`}>
+                        {performanceMetrics.mode === 'client' ? 'Client Cache' : 'API'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-6 text-sm">
+                      {performanceMetrics.embeddingTime !== undefined && (
+                        <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
+                          Embedding: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-mono font-semibold">{performanceMetrics.embeddingTime.toFixed(0)}ms</span>
+                        </div>
+                      )}
+                      <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
+                        Search: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-mono font-semibold">{performanceMetrics.searchTime.toFixed(0)}ms</span>
+                      </div>
+                      <div className="text-gray-700 dark:text-gray-300 sepia:text-gray-800 font-medium">
+                        Total: <span className="text-green-600 dark:text-green-400 sepia:text-green-700 font-mono font-bold">{performanceMetrics.totalTime.toFixed(0)}ms</span>
+                      </div>
+                      <div className="text-gray-600 dark:text-gray-400 sepia:text-gray-700">
+                        Results: <span className="text-gray-900 dark:text-gray-100 sepia:text-gray-900 font-semibold">{performanceMetrics.resultCount.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
