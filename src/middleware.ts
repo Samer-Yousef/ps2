@@ -11,17 +11,12 @@ export function middleware(request: NextRequest) {
   )
 
   // Check for session token (NextAuth uses this cookie)
-  const token = request.cookies.get('authjs.session-token') || request.cookies.get('__Secure-authjs.session-token')
-  const isLoggedIn = !!token
+  const sessionToken = request.cookies.get('authjs.session-token')?.value ||
+                       request.cookies.get('__Secure-authjs.session-token')?.value
 
-  // Redirect to login if accessing protected route while not logged in
-  if (isProtectedRoute && !isLoggedIn) {
+  // Only redirect to login for protected routes if no session token exists
+  if (isProtectedRoute && !sessionToken) {
     return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Redirect to home if accessing login/register while logged in
-  if ((pathname === '/login' || pathname === '/register') && isLoggedIn) {
-    return NextResponse.redirect(new URL('/', request.url))
   }
 
   return NextResponse.next()

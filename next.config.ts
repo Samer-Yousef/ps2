@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  turbopack: {},
   serverExternalPackages: [
     '@prisma/client',
     '@prisma/adapter-libsql',
