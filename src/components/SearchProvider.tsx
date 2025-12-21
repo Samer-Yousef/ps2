@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { PerformanceMetrics } from '@/types/search';
 
 interface SearchResult {
   id: number;
@@ -13,11 +14,16 @@ interface SearchResult {
   metadata: any;
 }
 
+interface SearchResponse {
+  results: SearchResult[];
+  performance: PerformanceMetrics;
+}
+
 interface SearchContextType {
   worker: Worker | null;
   workerReady: boolean;
   initStatus: string;
-  search: (query: string, limit?: number) => Promise<SearchResult[]>;
+  search: (query: string, limit?: number) => Promise<SearchResponse>;
 }
 
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
@@ -26,7 +32,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const workerRef = useRef<Worker | null>(null);
   const [workerReady, setWorkerReady] = useState(false);
   const [initStatus, setInitStatus] = useState('Initializing...');
-  const searchCallbacksRef = useRef<Map<number, { resolve: (results: SearchResult[]) => void; reject: (error: Error) => void }>>(new Map());
+  const searchCallbacksRef = useRef<Map<number, { resolve: (response: SearchResponse) => void; reject: (error: Error) => void }>>(new Map());
   const searchIdRef = useRef(0);
 
   useEffect(() => {
@@ -64,7 +70,11 @@ export function SearchProvider({ children }: { children: ReactNode }) {
             if (msg.error) {
               callback.reject(new Error(msg.error));
             } else {
-              callback.resolve(msg.results || []);
+              // Return both results and performance metrics
+              callback.resolve({
+                results: msg.results || [],
+                performance: msg.performance
+              });
             }
           }
         }
@@ -83,7 +93,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const search = async (query: string, limit: number = 24000): Promise<SearchResult[]> => {
+  const search = async (query: string, limit: number = 24000): Promise<SearchResponse> => {
     if (!workerRef.current || !workerReady) {
       throw new Error('Worker not ready');
     }

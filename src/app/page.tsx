@@ -68,12 +68,11 @@ const SYSTEMS = [
 
 export default function Home() {
   const { data: session, status } = useSession();
+  const { workerReady, initStatus, search: searchWorker } = useSearch(); // Use SearchProvider's worker
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
-  const [initStatus, setInitStatus] = useState('Initializing...');
-  const [workerReady, setWorkerReady] = useState(false);
   const [showClinical, setShowClinical] = useState(false);
   const [hideDiagnosis, setHideDiagnosis] = useState(false);
   const [revealedDiagnoses, setRevealedDiagnoses] = useState<Set<number>>(new Set());
@@ -362,16 +361,16 @@ export default function Home() {
 
     try {
       if (searchMode === 'client') {
-        // Client mode: use worker if ready
-        if (workerReady && workerRef.current) {
-          workerRef.current.postMessage({ type: 'search', query: searchQuery, limit: 24000 });
-          // Performance metrics will be set in worker onmessage handler
-          return;
+        // Client mode: use SearchProvider's worker
+        if (workerReady) {
+          const response = await searchWorker(searchQuery, 24000);
+          setResults(response.results);
+          setPerformanceMetrics(response.performance);
+          setLoading(false);
         } else {
           // Worker not ready - show initialization status
           console.warn('Worker not ready, waiting for initialization');
           setLoading(false);
-          return;
         }
       } else {
         // API mode: Track complete end-to-end time including network
@@ -400,7 +399,7 @@ export default function Home() {
       setPerformanceMetrics(null);
       setLoading(false);
     }
-  }, [searchMode, workerReady]);
+  }, [searchMode, workerReady, searchWorker]);
 
   // Handle user typing - clear secret search when user types
   const handleQueryChange = (newQuery: string) => {
@@ -427,62 +426,7 @@ export default function Home() {
     return () => clearTimeout(timeoutId);
   }, [query, secretSearchQuery, performSearch, searchMode]);
 
-  // Web Worker setup for client-side searching
-  const workerRef = useRef<Worker | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    try {
-      const w = new Worker('/searchWorker.js');
-      workerRef.current = w;
-      w.postMessage({ type: 'init' });
-
-      w.onmessage = (ev) => {
-        const msg = ev.data || {};
-        if (!mounted) return;
-
-        if (msg.type === 'status') {
-          setInitStatus(msg.message);
-        }
-
-        if (msg.type === 'inited') {
-          if (msg.status === 'ok') {
-            setWorkerReady(true);
-            setInitStatus(`Ready • ${msg.numEntries.toLocaleString()} cases loaded`);
-          } else {
-            setInitStatus('Error loading database');
-          }
-        }
-
-        if (msg.type === 'results') {
-          if (msg.error) {
-            // Worker search error - will be displayed to user via UI
-            setResults([]);
-            setPerformanceMetrics(null);
-          } else {
-            setResults(msg.results || []);
-            setPerformanceMetrics(msg.performance || null);
-          }
-          setLoading(false);
-        }
-      };
-
-      w.onerror = (e) => {
-        // Worker initialization error
-        setInitStatus('Worker failed');
-      };
-    } catch (err) {
-      // Worker initialization failed - will fallback to server API
-      setInitStatus('Worker unavailable');
-    }
-
-    return () => {
-      mounted = false;
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
-      }
-    };
-  }, []);
+  // Worker is now managed by SearchProvider - no duplicate initialization needed
 
   return (
     <main className="flex min-h-screen">
