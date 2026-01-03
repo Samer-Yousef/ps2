@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { ThemeSelector } from '@/components/ThemeSelector';
+import { DatabaseLoadingIndicator } from '@/components/DatabaseLoadingIndicator';
 import { useSearch } from '@/components/SearchProvider';
 import { PerformanceMetrics } from '@/types/search';
 
@@ -456,6 +457,9 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen">
+      {/* Database Loading Indicator */}
+      <DatabaseLoadingIndicator />
+
       <style jsx>{`
         @keyframes result-click {
           0% {
@@ -559,16 +563,45 @@ export default function Home() {
             Pathology <span style={{ color: '#0069ff' }}>Search</span>
           </h1>
 
-        <div className="mb-4">
+        <div className="mb-4 relative">
           <form onSubmit={(e) => e.preventDefault()}>
             <input
               type="text"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
-              placeholder="Search for diagnoses, organs, or systems (e.g., 'ovary carcinoma')..."
-              className="w-full px-5 py-3 border-2 border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] text-gray-900 dark:text-gray-100 sepia:text-gray-900 placeholder:text-gray-500 dark:placeholder:text-gray-400 sepia:placeholder:text-gray-600 shadow-md hover:shadow-lg transition-shadow"
+              placeholder={
+                workerReady
+                  ? "Search for diagnoses, organs, or systems (e.g., 'ovary carcinoma')..."
+                  : "Loading search database..."
+              }
+              className={`w-full px-5 py-3 pr-12 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] text-gray-900 dark:text-gray-100 sepia:text-gray-900 shadow-md transition-all
+                ${!workerReady
+                  ? 'border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-60 animate-pulse'
+                  : 'border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:shadow-lg'
+                }
+                placeholder:text-gray-500 dark:placeholder:text-gray-400 sepia:placeholder:text-gray-600`}
               disabled={!workerReady}
             />
+
+            {/* Loading spinner inside input */}
+            {!workerReady && (
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                <svg className="animate-spin h-5 w-5 text-gray-400" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12" cy="12" r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              </div>
+            )}
           </form>
         </div>
 
