@@ -341,18 +341,14 @@ export default function Home() {
       return;
     }
 
-    let currentIndex = 0;
+    // Start at random position, then cycle through in order
+    let exampleIndex = Math.floor(Math.random() * EXAMPLE_QUERIES.length);
     let currentText = '';
     let isTyping = true;
     let timeoutId: NodeJS.Timeout;
 
-    const getRandomExample = () => {
-      const randomIndex = Math.floor(Math.random() * EXAMPLE_QUERIES.length);
-      return EXAMPLE_QUERIES[randomIndex];
-    };
-
     const typeText = async () => {
-      const targetText = getRandomExample();
+      const targetText = EXAMPLE_QUERIES[exampleIndex];
       currentText = '';
       isTyping = true;
 
@@ -375,6 +371,9 @@ export default function Home() {
         setPlaceholderText(currentText);
         await new Promise(resolve => { timeoutId = setTimeout(resolve, backspaceDelay); });
       }
+
+      // Move to next example (cycle around)
+      exampleIndex = (exampleIndex + 1) % EXAMPLE_QUERIES.length;
 
       // Start next example
       typeText();
@@ -618,7 +617,7 @@ export default function Home() {
               placeholder={
                 !workerReady
                   ? "Loading search database..."
-                  : placeholderText || "Search for diagnoses, organs, or systems..."
+                  : placeholderText
               }
               className="w-full px-5 py-3 border-2 border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] text-gray-900 dark:text-gray-100 sepia:text-gray-900 placeholder:text-gray-500 dark:placeholder:text-gray-400 sepia:placeholder:text-gray-600 shadow-md hover:shadow-lg transition-shadow"
             />
@@ -834,7 +833,7 @@ export default function Home() {
                             title={m.url ? 'Click to view case' : ''}
                           >
                           {/* Organ only in compact, System + Organ in clinical */}
-                          <div className={showClinical ? 'mb-2' : 'w-28 shrink-0 text-right'}>
+                          <div className={showClinical ? 'mb-2' : 'w-20 shrink-0 text-right'}>
                             {showClinical && m.system && (
                               <div className="font-medium text-gray-900 dark:text-gray-100 sepia:text-gray-900 text-base">
                                 {m.system}
