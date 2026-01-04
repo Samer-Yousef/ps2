@@ -563,14 +563,12 @@ export default function Home() {
                     href="/dashboard"
                     className="text-sm text-blue-600 dark:text-blue-400 sepia:text-blue-600 hover:underline"
                   >
-                    Dashboard
+                    Favorites
                   </Link>
-                  <span className="text-sm text-gray-600 dark:text-gray-400 sepia:text-gray-700">
-                    {session.user?.email}
-                  </span>
+                  <span className="text-gray-400 dark:text-gray-600">•</span>
                   <button
                     onClick={() => signOut()}
-                    className="text-sm px-3 py-1 bg-gray-200 dark:bg-gray-700 sepia:bg-[#e8dfc8] hover:bg-gray-300 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8] rounded"
+                    className="text-sm text-gray-600 dark:text-gray-400 sepia:text-gray-700 hover:text-gray-900 dark:hover:text-gray-200 sepia:hover:text-gray-900 hover:underline"
                   >
                     Sign out
                   </button>

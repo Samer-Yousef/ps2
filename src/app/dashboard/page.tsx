@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [favoriteCaseIds, setFavoriteCaseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'history' | 'favorites'>('history');
+  const [activeTab, setActiveTab] = useState<'history' | 'favorites'>('favorites');
   const [revealedDiagnoses, setRevealedDiagnoses] = useState<Set<string>>(new Set());
   const [showClinical, setShowClinical] = useState(false);
   const [hideDiagnosis, setHideDiagnosis] = useState(true);

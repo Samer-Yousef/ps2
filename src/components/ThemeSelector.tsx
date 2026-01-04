@@ -31,19 +31,10 @@ export function ThemeSelector() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg bg-white dark:bg-gray-800 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-200 sepia:text-gray-900 border border-gray-900 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-700 sepia:hover:bg-[#ddd0b8] transition-colors"
+        className="flex items-center justify-center w-8 h-8 text-lg rounded hover:bg-gray-100 dark:hover:bg-gray-800 sepia:hover:bg-[#e8dfc8] transition-colors opacity-60 hover:opacity-100"
         title="Change theme"
       >
         <span>{currentTheme.icon}</span>
-        <span className="hidden sm:inline">{currentTheme.label}</span>
-        <svg
-          className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
       {isOpen && (
