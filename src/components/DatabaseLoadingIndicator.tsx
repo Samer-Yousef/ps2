@@ -9,9 +9,9 @@ export function DatabaseLoadingIndicator() {
 
   // Parse loading step from status message
   const getProgress = (status: string) => {
-    if (status.includes('Loading database')) return { percent: 33, step: 1 };
-    if (status.includes('Loading PCA')) return { percent: 66, step: 2 };
-    if (status.includes('Loading embedding')) return { percent: 90, step: 3 };
+    if (status.includes('Level 1')) return { percent: 33, step: 1 };
+    if (status.includes('Level 2')) return { percent: 66, step: 2 };
+    if (status.includes('Level 3')) return { percent: 90, step: 3 };
     return { percent: 10, step: 0 };
   };
 

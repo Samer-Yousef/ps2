@@ -481,33 +481,6 @@ export default function Home() {
           }
         }
 
-        @keyframes filter-twinkle {
-          0% {
-            box-shadow:
-              1px -1px 0 0 rgba(147, 197, 253, 0.8),
-              2px -2px 3px 0 rgba(147, 197, 253, 0.3);
-          }
-          25% {
-            box-shadow:
-              1px 1px 0 0 rgba(147, 197, 253, 0.8),
-              2px 2px 3px 0 rgba(147, 197, 253, 0.3);
-          }
-          50% {
-            box-shadow:
-              -1px 1px 0 0 rgba(147, 197, 253, 0.8),
-              -2px 2px 3px 0 rgba(147, 197, 253, 0.3);
-          }
-          75% {
-            box-shadow:
-              -1px -1px 0 0 rgba(147, 197, 253, 0.8),
-              -2px -2px 3px 0 rgba(147, 197, 253, 0.3);
-          }
-          100% {
-            box-shadow:
-              1px -1px 0 0 rgba(147, 197, 253, 0.8),
-              2px -2px 3px 0 rgba(147, 197, 253, 0.3);
-          }
-        }
       `}</style>
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center p-4 pt-8">
@@ -591,7 +564,6 @@ export default function Home() {
                         ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-white dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-200 sepia:text-gray-900 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8]'
                     }`}
-                    style={showClinical ? { animation: 'filter-twinkle 2s ease-in-out infinite' } : {}}
                   >
                     {showClinical ? 'Hide Clinical' : 'Show Clinical'}
                   </button>
@@ -605,7 +577,6 @@ export default function Home() {
                         ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-white dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-200 sepia:text-gray-900 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8]'
                     }`}
-                    style={hideDiagnosis ? { animation: 'filter-twinkle 2s ease-in-out infinite' } : {}}
                   >
                     {hideDiagnosis ? 'Show Diagnoses' : 'Hide Diagnoses'}
                   </button>
@@ -625,7 +596,6 @@ export default function Home() {
                           ? 'bg-blue-600 text-white'
                           : 'bg-white dark:bg-gray-700 sepia:bg-[#faf8f3] text-gray-700 dark:text-gray-300 sepia:text-gray-800 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#f0ebe0]'
                       }`}
-                      style={selectedSystems.has(system) ? { animation: 'filter-twinkle 2s ease-in-out infinite' } : {}}
                     >
                       {system}
                     </button>
@@ -728,7 +698,6 @@ export default function Home() {
                           ? 'bg-teal-700 dark:bg-teal-800 text-white'
                           : 'bg-white dark:bg-gray-700 sepia:bg-[#faf8f3] text-gray-700 dark:text-gray-300 sepia:text-gray-800 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#f0ebe0]'
                       }`}
-                      style={selectedSources.has(source) ? { animation: 'filter-twinkle 2s ease-in-out infinite' } : {}}
                     >
                       {source}
                     </button>

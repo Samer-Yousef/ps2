@@ -191,11 +191,11 @@ self.addEventListener('message', async (ev) => {
   if (msg.type === 'init') {
     if (!initialized) {
       try {
-        self.postMessage({ type: 'status', message: 'Loading database...' });
+        self.postMessage({ type: 'status', message: 'Level 1: Gathering pathology cases...' });
         await loadDB();
-        self.postMessage({ type: 'status', message: 'Loading PCA model...' });
+        self.postMessage({ type: 'status', message: 'Level 2: Organizing case data...' });
         await loadPCA();
-        self.postMessage({ type: 'status', message: 'Loading embedding model...' });
+        self.postMessage({ type: 'status', message: 'Level 3: Powering up search engine...' });
         await initEmbedder();
         initialized = true;
         self.postMessage({ type: 'inited', status: 'ok', numEntries });
