@@ -554,7 +554,7 @@ export default function Home() {
         <div className="w-full max-w-5xl">
           {/* User Navigation */}
           <div className="flex justify-end items-center mb-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <ThemeSelector />
               {status === 'loading' ? (
                 <span className="text-sm text-gray-500">Loading...</span>
@@ -596,7 +596,7 @@ export default function Home() {
           </div>
 
           {/* Title */}
-          <h1 className="text-center text-5xl font-light tracking-wide mb-6">
+          <h1 className="text-center text-6xl font-light tracking-wide mb-6">
             Pathology <span style={{ color: '#0069ff' }}>Search</span>
           </h1>
 
@@ -834,7 +834,7 @@ export default function Home() {
                             title={m.url ? 'Click to view case' : ''}
                           >
                           {/* Organ only in compact, System + Organ in clinical */}
-                          <div className={showClinical ? 'mb-2' : 'w-32 shrink-0'}>
+                          <div className={showClinical ? 'mb-2' : 'w-28 shrink-0 text-right'}>
                             {showClinical && m.system && (
                               <div className="font-medium text-gray-900 dark:text-gray-100 sepia:text-gray-900 text-base">
                                 {m.system}
