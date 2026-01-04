@@ -67,6 +67,17 @@ const SYSTEMS = [
   'Paediatric Pathology'
 ];
 
+const EXAMPLE_QUERIES = [
+  "ovary malignant",
+  "ovary serous carcinoma",
+  "lymph node benign",
+  "kikuchi",
+  "serous borderline with carcinoma",
+  "melanoma lymph node",
+  "breast benign neoplasm",
+  "thyroid anaplastic",
+];
+
 export default function Home() {
   const { data: session, status } = useSession();
   const { workerReady, initStatus, search: searchWorker } = useSearch(); // Use SearchProvider's worker
@@ -90,6 +101,8 @@ export default function Home() {
   const lineageDropdownRef = useRef<HTMLDivElement>(null);
   const organDropdownRef = useRef<HTMLDivElement>(null);
   const [clickedResultId, setClickedResultId] = useState<number | null>(null); // Track clicked result for animation
+  const [placeholderText, setPlaceholderText] = useState('');
+  const [isUserTyping, setIsUserTyping] = useState(false);
 
   // Helper to get value with AI fallback
   const getWithFallback = (primary: any, fallback: any): string => {
@@ -321,6 +334,60 @@ export default function Home() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Typing animation for placeholder text
+  useEffect(() => {
+    if (!workerReady || isUserTyping || query.trim().length > 0) {
+      setPlaceholderText('');
+      return;
+    }
+
+    let currentIndex = 0;
+    let currentText = '';
+    let isTyping = true;
+    let timeoutId: NodeJS.Timeout;
+
+    const getRandomExample = () => {
+      const randomIndex = Math.floor(Math.random() * EXAMPLE_QUERIES.length);
+      return EXAMPLE_QUERIES[randomIndex];
+    };
+
+    const typeText = async () => {
+      const targetText = getRandomExample();
+      currentText = '';
+      isTyping = true;
+
+      // Type each character
+      for (let i = 0; i < targetText.length; i++) {
+        if (!isTyping) return;
+        currentText = targetText.slice(0, i + 1);
+        setPlaceholderText(currentText);
+        await new Promise(resolve => { timeoutId = setTimeout(resolve, 60); });
+      }
+
+      // Wait at the end
+      await new Promise(resolve => { timeoutId = setTimeout(resolve, 2000); });
+
+      // Backspace quickly
+      const backspaceDelay = 200 / currentText.length; // Total 200ms for all backspaces
+      for (let i = currentText.length; i >= 0; i--) {
+        if (!isTyping) return;
+        currentText = targetText.slice(0, i);
+        setPlaceholderText(currentText);
+        await new Promise(resolve => { timeoutId = setTimeout(resolve, backspaceDelay); });
+      }
+
+      // Start next example
+      typeText();
+    };
+
+    typeText();
+
+    return () => {
+      isTyping = false;
+      clearTimeout(timeoutId);
+    };
+  }, [workerReady, isUserTyping, query]);
+
   // Filter results by selected sources (first level)
   const sourceFilteredResults = selectedSources.size === 0
     ? results
@@ -538,11 +605,20 @@ export default function Home() {
             <input
               type="text"
               value={query}
-              onChange={(e) => handleQueryChange(e.target.value)}
+              onChange={(e) => {
+                handleQueryChange(e.target.value);
+                setIsUserTyping(true);
+              }}
+              onFocus={() => setIsUserTyping(true)}
+              onBlur={() => {
+                if (query.trim().length === 0) {
+                  setIsUserTyping(false);
+                }
+              }}
               placeholder={
-                workerReady
-                  ? "Search for diagnoses, organs, or systems (e.g., 'ovary carcinoma')..."
-                  : "Loading search database..."
+                !workerReady
+                  ? "Loading search database..."
+                  : placeholderText || "Search for diagnoses, organs, or systems..."
               }
               className="w-full px-5 py-3 border-2 border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] text-gray-900 dark:text-gray-100 sepia:text-gray-900 placeholder:text-gray-500 dark:placeholder:text-gray-400 sepia:placeholder:text-gray-600 shadow-md hover:shadow-lg transition-shadow"
             />
