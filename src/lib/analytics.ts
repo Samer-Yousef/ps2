@@ -8,15 +8,35 @@ declare global {
 }
 
 /**
+ * Get device and geographic context (lightweight helper for all events)
+ */
+const getDeviceGeoContext = () => {
+  if (typeof window === 'undefined') return {};
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  const locale = window.navigator.language || '';
+
+  return {
+    device_type: userAgent.includes('mobile') || userAgent.includes('iphone') ? 'mobile' :
+                 userAgent.includes('ipad') || userAgent.includes('tablet') ? 'tablet' : 'desktop',
+    country: locale.split('-')[1] || undefined,
+  };
+};
+
+/**
  * Base function to track events to Google Analytics
  */
 export const trackEvent = (eventName: string, parameters: Record<string, any> = {}) => {
   if (typeof window !== 'undefined' && window.gtag) {
+    // Add device and geo context to all events (lightweight)
+    const context = getDeviceGeoContext();
+    const enrichedParams = { ...parameters, ...context };
+
     // Debug: Log event to console in development
     if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Analytics Event:', eventName, parameters);
+      console.log('📊 Analytics Event:', eventName, enrichedParams);
     }
-    window.gtag('event', eventName, parameters);
+    window.gtag('event', eventName, enrichedParams);
   } else if (typeof window !== 'undefined') {
     // GA not loaded yet
     console.warn('⚠️ Google Analytics not loaded. Event:', eventName);
@@ -317,6 +337,79 @@ const detectTrafficSource = (referrer: string): 'organic' | 'direct' | 'social' 
 };
 
 /**
+ * Detect browser from user agent
+ */
+const detectBrowser = (): string => {
+  if (typeof window === 'undefined' || !window.navigator) return 'unknown';
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+
+  if (userAgent.includes('edg/')) return 'Edge';
+  if (userAgent.includes('chrome') && !userAgent.includes('edg')) return 'Chrome';
+  if (userAgent.includes('safari') && !userAgent.includes('chrome')) return 'Safari';
+  if (userAgent.includes('firefox')) return 'Firefox';
+  if (userAgent.includes('opera') || userAgent.includes('opr/')) return 'Opera';
+  if (userAgent.includes('msie') || userAgent.includes('trident/')) return 'Internet Explorer';
+
+  return 'Other';
+};
+
+/**
+ * Detect device type (mobile/tablet/desktop)
+ */
+const detectDeviceType = (): 'mobile' | 'tablet' | 'desktop' => {
+  if (typeof window === 'undefined' || !window.navigator) return 'desktop';
+
+  const userAgent = window.navigator.userAgent.toLowerCase();
+
+  // Check for tablet
+  if (userAgent.includes('ipad') ||
+      (userAgent.includes('android') && !userAgent.includes('mobile')) ||
+      userAgent.includes('tablet')) {
+    return 'tablet';
+  }
+
+  // Check for mobile
+  if (userAgent.includes('mobile') ||
+      userAgent.includes('iphone') ||
+      userAgent.includes('ipod') ||
+      userAgent.includes('android')) {
+    return 'mobile';
+  }
+
+  return 'desktop';
+};
+
+/**
+ * Get country/region from browser locale and timezone
+ */
+const getCountryInfo = (): { country?: string; timezone?: string; language?: string } => {
+  if (typeof window === 'undefined' || !window.navigator) {
+    return {};
+  }
+
+  try {
+    // Get language (e.g., "en-US" -> "US")
+    const locale = window.navigator.language || '';
+    const countryFromLocale = locale.split('-')[1] || undefined;
+
+    // Get timezone (e.g., "America/New_York")
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+
+    // Get language code (e.g., "en")
+    const language = locale.split('-')[0] || undefined;
+
+    return {
+      country: countryFromLocale,
+      timezone,
+      language,
+    };
+  } catch (error) {
+    return {};
+  }
+};
+
+/**
  * Track session start with referrer and traffic source data
  */
 export const trackSessionStart = (params: {
@@ -354,6 +447,11 @@ export const trackSessionStart = (params: {
     localStorage.setItem('last_visit', Date.now().toString());
   }
 
+  // Get device and location information
+  const browser = detectBrowser();
+  const deviceType = detectDeviceType();
+  const countryInfo = getCountryInfo();
+
   trackEvent('session_start', {
     is_authenticated: params.isAuthenticated,
     theme: params.theme,
@@ -368,6 +466,13 @@ export const trackSessionStart = (params: {
     is_first_visit: isFirstVisit,
     is_returning_user: isReturningUser,
     days_since_last_visit: daysSinceLastVisit,
+    // Device & Browser Information
+    browser: browser,
+    device_type: deviceType,
+    // Geographic Information
+    country: countryInfo.country,
+    timezone: countryInfo.timezone,
+    language: countryInfo.language,
   });
 };
 
