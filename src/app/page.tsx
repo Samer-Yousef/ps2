@@ -7,7 +7,7 @@ import { ThemeSelector } from '@/components/ThemeSelector';
 import { DatabaseLoadingIndicator } from '@/components/DatabaseLoadingIndicator';
 import { useSearch } from '@/components/SearchProvider';
 import { PerformanceMetrics } from '@/types/search';
-import { useSearchTracking, useSessionTracking, useTimeTracking } from '@/hooks/useAnalytics';
+import { useSearchTracking, useSessionTracking, useTimeTracking, useScrollTracking, useHoverTracking, useClickPatternTracking, useRapidSearchTracking } from '@/hooks/useAnalytics';
 import { trackResultClick, trackFavoriteAction, trackViewToggle, trackFilterApplied, trackDatabaseLoad, trackLowRelevanceSearch } from '@/lib/analytics';
 
 interface SearchResult {
@@ -103,11 +103,17 @@ export default function Home() {
   const lineageDropdownRef = useRef<HTMLDivElement>(null);
   const organDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Analytics hooks
+  // Analytics hooks - Phase 1
   const { trackKeystroke, trackSearchResults, trackResultClicked, searchStartTime } = useSearchTracking();
   useSessionTracking(); // Tracks session start automatically
   const { incrementSearchCount, incrementClickCount, incrementFavoritesAdded } = useTimeTracking();
   const clickCountRef = useRef<number>(0);
+
+  // Analytics hooks - Phase 2 (Behavioral tracking)
+  const { trackScroll } = useScrollTracking();
+  const { startHover, endHover } = useHoverTracking();
+  const { trackClick: trackClickPattern } = useClickPatternTracking();
+  const { trackSearch: trackRapidSearch } = useRapidSearchTracking();
   const [clickedResultId, setClickedResultId] = useState<number | null>(null); // Track clicked result for animation
   const [placeholderText, setPlaceholderText] = useState('');
   const [isUserTyping, setIsUserTyping] = useState(false);
@@ -153,6 +159,18 @@ export default function Home() {
         Array.from(selectedOrgans)
       ),
     });
+
+    // Phase 2: Track click pattern for comparison behavior
+    trackClickPattern(
+      result.metadata.case_id || result.id.toString(),
+      position + 1,
+      result.metadata.extracted_diagnosis || result.metadata.essential_diagnosis || result.diagnosis,
+      result.metadata.organ,
+      result.metadata.system
+    );
+
+    // Phase 2: End hover tracking (clicked after hover)
+    endHover(true);
 
     // Save to history if user is authenticated (fire and forget)
     if (session?.user && result.metadata.case_id) {
@@ -526,6 +544,13 @@ export default function Home() {
           // Track search results for analytics
           trackSearchResults(searchQuery, response.results.length, searchLatency);
 
+          // Phase 2: Track rapid search patterns
+          trackRapidSearch(
+            searchQuery,
+            response.results.length,
+            response.results.length > 0 ? response.results[0].similarity : 0
+          );
+
           // Track low relevance if top result has similarity < 0.5
           if (response.results.length > 0 && response.results[0].similarity < 0.5) {
             trackLowRelevanceSearch({
@@ -564,6 +589,13 @@ export default function Home() {
 
           // Track search results for analytics
           trackSearchResults(searchQuery, data.results.length, searchLatency);
+
+          // Phase 2: Track rapid search patterns
+          trackRapidSearch(
+            searchQuery,
+            data.results.length,
+            data.results.length > 0 ? data.results[0].similarity : 0
+          );
 
           // Track low relevance if top result has similarity < 0.5
           if (data.results.length > 0 && data.results[0].similarity < 0.5) {
@@ -911,6 +943,13 @@ export default function Home() {
                     <div key={result.id} className="flex items-start gap-2">
                       {/* Main result card */}
                       <div
+                        onMouseEnter={() => startHover(
+                          result.metadata.case_id || result.id.toString(),
+                          index + 1,
+                          diagnosis,
+                          result.similarity
+                        )}
+                        onMouseLeave={() => endHover(false)}
                         className={`flex-1 border border-gray-200 dark:border-gray-700 sepia:border-[#d9d0c0] rounded transition-all duration-200 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] hover:bg-blue-50 dark:hover:bg-gray-700 sepia:hover:bg-[#e8dfc8] hover:border-blue-300 dark:hover:border-blue-600 sepia:hover:border-blue-400 hover:shadow-lg ${
                           showClinical ? 'p-4' : 'px-3 py-1.5'
                         } ${isClicked ? 'animate-result-click' : ''}`}

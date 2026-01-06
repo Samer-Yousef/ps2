@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { trackThemeChange } from '@/lib/analytics';
 
 type Theme = 'light' | 'dark' | 'sepia';
 
@@ -14,6 +15,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Initialize with light theme - this is the default
   const [theme, setTheme] = useState<Theme>('light');
+  const sessionStartTimeRef = useRef<number>(Date.now());
 
   useEffect(() => {
     // On mount, check localStorage and apply the correct theme
@@ -31,6 +33,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const changeTheme = (newTheme: Theme) => {
+    // Track theme change
+    const timeOnSite = Date.now() - sessionStartTimeRef.current;
+    const currentHour = new Date().getHours();
+
+    trackThemeChange({
+      fromTheme: theme,
+      toTheme: newTheme,
+      timeOnSiteBeforeChangeMs: timeOnSite,
+      timeOfDay: currentHour,
+    });
+
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
     document.documentElement.classList.remove('light', 'dark', 'sepia');

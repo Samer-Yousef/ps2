@@ -601,3 +601,165 @@ export const trackFeatureDiscovery = (params: {
     searches_before_discovery: params.searchesBeforeDiscovery,
   });
 };
+
+// ============================================================================
+// PHASE 2: BEHAVIORAL TRACKING
+// ============================================================================
+
+/**
+ * Track result hover behavior (user hovers over result for 2+ seconds)
+ */
+export const trackResultHover = (params: {
+  resultId: string;
+  resultPosition: number;
+  hoverDurationMs: number;
+  clickedAfterHover: boolean;
+  diagnosis: string;
+  similarityScore?: number;
+}) => {
+  trackEvent('result_hover', {
+    result_id: params.resultId,
+    result_position: params.resultPosition,
+    hover_duration_ms: params.hoverDurationMs,
+    clicked_after_hover: params.clickedAfterHover,
+    diagnosis: params.diagnosis,
+    similarity_score: params.similarityScore,
+  });
+};
+
+/**
+ * Track bounce back behavior (user clicks result, returns quickly)
+ */
+export const trackResultBounceBack = (params: {
+  resultId: string;
+  timeOnExternalPageMs: number;
+  nextAction: 'clicked_different_result' | 'refined_search' | 'left';
+  resultPosition: number;
+  diagnosis: string;
+}) => {
+  trackEvent('result_bounce_back', {
+    result_id: params.resultId,
+    time_on_external_page_ms: params.timeOnExternalPageMs,
+    next_action: params.nextAction,
+    result_position: params.resultPosition,
+    diagnosis: params.diagnosis,
+  });
+};
+
+/**
+ * Track theme changes
+ */
+export const trackThemeChange = (params: {
+  fromTheme: 'light' | 'dark' | 'sepia';
+  toTheme: 'light' | 'dark' | 'sepia';
+  timeOnSiteBeforeChangeMs: number;
+  timeOfDay: number; // Hour 0-23
+}) => {
+  trackEvent('theme_change', {
+    from_theme: params.fromTheme,
+    to_theme: params.toTheme,
+    time_on_site_before_change_ms: params.timeOnSiteBeforeChangeMs,
+    time_of_day: params.timeOfDay,
+  });
+};
+
+/**
+ * Track rapid search pattern (5+ searches within 2 minutes)
+ */
+export const trackRapidSearchPattern = (params: {
+  searchCount: number;
+  timeWindowMs: number;
+  querySimilarity: number; // 0-1, how similar are searches
+  resultQualityTrend: 'improving' | 'declining' | 'stable';
+  clickingBehavior: 'exploring' | 'frustrated' | 'comparing';
+  finalQuery: string;
+}) => {
+  trackEvent('rapid_search_pattern', {
+    search_count: params.searchCount,
+    time_window_ms: params.timeWindowMs,
+    query_similarity: params.querySimilarity,
+    result_quality_trend: params.resultQualityTrend,
+    clicking_behavior: params.clickingBehavior,
+    final_query: params.finalQuery,
+  });
+};
+
+/**
+ * Track comparison behavior (multiple results clicked quickly)
+ */
+export const trackComparisonBehavior = (params: {
+  resultIds: string[];
+  query: string;
+  timeSpanMs: number;
+  returnedToSameResult: boolean;
+  diagnosesCompared: string[];
+}) => {
+  trackEvent('comparison_behavior', {
+    result_ids: params.resultIds,
+    query: params.query,
+    time_span_ms: params.timeSpanMs,
+    returned_to_same_result: params.returnedToSameResult,
+    diagnoses_compared: params.diagnosesCompared,
+  });
+};
+
+// ============================================================================
+// DASHBOARD ANALYTICS
+// ============================================================================
+
+/**
+ * Track dashboard filter usage
+ */
+export const trackDashboardFilterUsage = (params: {
+  tab: 'history' | 'favorites';
+  filterCombinations: string[];
+  itemsBeforeFilter: number;
+  itemsAfterFilter: number;
+  filterCleared: boolean;
+}) => {
+  trackEvent('dashboard_filter_usage', {
+    tab: params.tab,
+    filter_combinations: params.filterCombinations,
+    items_before_filter: params.itemsBeforeFilter,
+    items_after_filter: params.itemsAfterFilter,
+    filter_cleared: params.filterCleared,
+  });
+};
+
+/**
+ * Track random slide feature usage
+ */
+export const trackRandomSlideShown = (params: {
+  fromTab: 'history' | 'favorites';
+  totalItemsAvailable: number;
+  diagnosisRevealedImmediately: boolean;
+  timeToRevealMs?: number;
+  actionTaken: 'viewed_slide' | 'closed' | 'none';
+  diagnosis: string;
+}) => {
+  trackEvent('random_slide_shown', {
+    from_tab: params.fromTab,
+    total_items_available: params.totalItemsAvailable,
+    diagnosis_revealed_immediately: params.diagnosisRevealedImmediately,
+    time_to_reveal_ms: params.timeToRevealMs,
+    action_taken: params.actionTaken,
+    diagnosis: params.diagnosis,
+  });
+};
+
+/**
+ * Track dashboard search usage
+ */
+export const trackDashboardSearch = (params: {
+  tab: 'history' | 'favorites';
+  query: string;
+  resultsCount: number;
+  totalItemsInTab: number;
+}) => {
+  trackEvent('dashboard_search_used', {
+    tab: params.tab,
+    query: params.query,
+    results_count: params.resultsCount,
+    total_items_in_tab: params.totalItemsInTab,
+  });
+};

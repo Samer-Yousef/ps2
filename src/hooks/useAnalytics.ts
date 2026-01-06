@@ -345,3 +345,295 @@ export function useTimeTracking() {
     addPageVisited: (page: string) => pagesVisitedRef.current.add(page),
   };
 }
+
+/**
+ * Hook for tracking scroll behavior on search results
+ */
+export function useScrollTracking() {
+  const scrollStartTimeRef = useRef<number | null>(null);
+  const maxScrollPositionRef = useRef<number>(0);
+  const scrollDirectionChangesRef = useRef<number>(0);
+  const lastScrollPositionRef = useRef<number>(0);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const trackScroll = useCallback((currentScrollPosition: number, maxResultPosition: number) => {
+    // Start tracking if this is first scroll
+    if (!scrollStartTimeRef.current) {
+      scrollStartTimeRef.current = Date.now();
+    }
+
+    // Track maximum scroll depth
+    if (currentScrollPosition > maxScrollPositionRef.current) {
+      maxScrollPositionRef.current = currentScrollPosition;
+    }
+
+    // Detect scroll direction changes (scroll back up)
+    if (currentScrollPosition < lastScrollPositionRef.current) {
+      scrollDirectionChangesRef.current++;
+    }
+
+    lastScrollPositionRef.current = currentScrollPosition;
+
+    // Clear existing timeout
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+
+    // Track scroll behavior after user stops scrolling for 2 seconds
+    scrollTimeoutRef.current = setTimeout(() => {
+      if (scrollStartTimeRef.current) {
+        const scrollDuration = Date.now() - scrollStartTimeRef.current;
+        const scrollSpeed = scrollDuration < 2000 ? 'fast' : scrollDuration < 5000 ? 'medium' : 'slow';
+
+        import('@/lib/analytics').then(({ trackScrollBehavior }) => {
+          trackScrollBehavior({
+            maxResultPositionViewed: maxResultPosition,
+            scrollSpeed,
+            totalScrollTimeMs: scrollDuration,
+            scrollBackCount: scrollDirectionChangesRef.current,
+          });
+        });
+
+        // Reset for next scroll session
+        scrollStartTimeRef.current = null;
+        maxScrollPositionRef.current = 0;
+        scrollDirectionChangesRef.current = 0;
+      }
+    }, 2000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return { trackScroll };
+}
+
+/**
+ * Hook for tracking result hover behavior
+ */
+export function useHoverTracking() {
+  const hoverStartRef = useRef<{ resultId: string; position: number; startTime: number } | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const startHover = useCallback((resultId: string, position: number, diagnosis: string, similarityScore?: number) => {
+    hoverStartRef.current = {
+      resultId,
+      position,
+      startTime: Date.now(),
+    };
+
+    // Track if hover lasts 2+ seconds
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (hoverStartRef.current) {
+        const hoverDuration = Date.now() - hoverStartRef.current.startTime;
+
+        import('@/lib/analytics').then(({ trackResultHover }) => {
+          trackResultHover({
+            resultId: hoverStartRef.current!.resultId,
+            resultPosition: hoverStartRef.current!.position,
+            hoverDurationMs: hoverDuration,
+            clickedAfterHover: false, // Will be updated if they click
+            diagnosis,
+            similarityScore,
+          });
+        });
+      }
+    }, 2000);
+  }, []);
+
+  const endHover = useCallback((clicked: boolean = false) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    // If clicked after hover, track it
+    if (clicked && hoverStartRef.current) {
+      const hoverDuration = Date.now() - hoverStartRef.current.startTime;
+      if (hoverDuration >= 2000) {
+        // Already tracked by timeout, will be marked as not clicked
+        // We could enhance this to update the event
+      }
+    }
+
+    hoverStartRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  return { startHover, endHover };
+}
+
+/**
+ * Hook for tracking click patterns and comparison behavior
+ */
+export function useClickPatternTracking() {
+  const sessionClicksRef = useRef<Array<{
+    resultId: string;
+    position: number;
+    timestamp: number;
+    diagnosis: string;
+    organ?: string;
+    system?: string;
+  }>>([]);
+
+  const trackClick = useCallback((
+    resultId: string,
+    position: number,
+    diagnosis: string,
+    organ?: string,
+    system?: string
+  ) => {
+    const now = Date.now();
+    sessionClicksRef.current.push({
+      resultId,
+      position,
+      timestamp: now,
+      diagnosis,
+      organ,
+      system,
+    });
+
+    // Check for comparison behavior (3+ clicks within 30 seconds)
+    const recentClicks = sessionClicksRef.current.filter(
+      click => now - click.timestamp < 30000
+    );
+
+    if (recentClicks.length >= 3) {
+      const timeSpan = now - recentClicks[0].timestamp;
+      const resultIds = recentClicks.map(c => c.resultId);
+      const diagnoses = [...new Set(recentClicks.map(c => c.diagnosis))];
+      const returnedToSame = new Set(resultIds).size < resultIds.length;
+
+      import('@/lib/analytics').then(({ trackComparisonBehavior }) => {
+        trackComparisonBehavior({
+          resultIds,
+          query: '', // Will be filled by caller
+          timeSpanMs: timeSpan,
+          returnedToSameResult: returnedToSame,
+          diagnosesCompared: diagnoses,
+        });
+      });
+    }
+
+    // Analyze click pattern after session
+    const totalClicks = sessionClicksRef.current.length;
+    if (totalClicks > 0) {
+      const positions = sessionClicksRef.current.map(c => c.position);
+      const uniqueOrgans = new Set(sessionClicksRef.current.map(c => c.organ).filter(Boolean)).size;
+      const uniqueSystems = new Set(sessionClicksRef.current.map(c => c.system).filter(Boolean)).size;
+      const clickDepthMax = Math.max(...positions);
+      const timeBetweenClicks = sessionClicksRef.current
+        .slice(1)
+        .map((click, i) => click.timestamp - sessionClicksRef.current[i].timestamp);
+
+      import('@/lib/analytics').then(({ trackClickPattern }) => {
+        trackClickPattern({
+          searchSessionId: `session_${Date.now()}`,
+          totalClicks,
+          clickPositions: positions,
+          timeBetweenClicksMs: timeBetweenClicks,
+          uniqueOrgansClicked: uniqueOrgans,
+          uniqueSystemsClicked: uniqueSystems,
+          clickDepthMax,
+        });
+      });
+    }
+  }, []);
+
+  const resetSession = useCallback(() => {
+    sessionClicksRef.current = [];
+  }, []);
+
+  return { trackClick, resetSession };
+}
+
+/**
+ * Hook for tracking rapid search patterns
+ */
+export function useRapidSearchTracking() {
+  const searchHistoryRef = useRef<Array<{
+    query: string;
+    timestamp: number;
+    resultCount: number;
+    topSimilarity: number;
+  }>>([]);
+
+  const trackSearch = useCallback((
+    query: string,
+    resultCount: number,
+    topSimilarity: number
+  ) => {
+    const now = Date.now();
+    searchHistoryRef.current.push({
+      query,
+      timestamp: now,
+      resultCount,
+      topSimilarity,
+    });
+
+    // Check for rapid search pattern (5+ searches within 2 minutes)
+    const recentSearches = searchHistoryRef.current.filter(
+      search => now - search.timestamp < 120000 // 2 minutes
+    );
+
+    if (recentSearches.length >= 5) {
+      const timeWindow = now - recentSearches[0].timestamp;
+
+      // Calculate query similarity (simple word overlap)
+      const calculateSimilarity = (q1: string, q2: string): number => {
+        const words1 = q1.toLowerCase().split(/\s+/);
+        const words2 = q2.toLowerCase().split(/\s+/);
+        const overlap = words1.filter(w => words2.includes(w)).length;
+        return overlap / Math.max(words1.length, words2.length);
+      };
+
+      const avgSimilarity = recentSearches.slice(1).reduce((sum, search, i) => {
+        return sum + calculateSimilarity(search.query, recentSearches[i].query);
+      }, 0) / (recentSearches.length - 1);
+
+      // Determine result quality trend
+      const similarities = recentSearches.map(s => s.topSimilarity);
+      const firstHalf = similarities.slice(0, Math.floor(similarities.length / 2));
+      const secondHalf = similarities.slice(Math.floor(similarities.length / 2));
+      const firstAvg = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+      const secondAvg = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+
+      const resultQualityTrend = secondAvg > firstAvg + 0.1 ? 'improving' :
+                                 secondAvg < firstAvg - 0.1 ? 'declining' : 'stable';
+
+      // Determine clicking behavior based on result counts
+      const avgResults = recentSearches.reduce((sum, s) => sum + s.resultCount, 0) / recentSearches.length;
+      const clickingBehavior = avgSimilarity > 0.6 ? 'exploring' :
+                              resultQualityTrend === 'declining' ? 'frustrated' : 'comparing';
+
+      import('@/lib/analytics').then(({ trackRapidSearchPattern }) => {
+        trackRapidSearchPattern({
+          searchCount: recentSearches.length,
+          timeWindowMs: timeWindow,
+          querySimilarity: avgSimilarity,
+          resultQualityTrend,
+          clickingBehavior,
+          finalQuery: query,
+        });
+      });
+    }
+
+    // Keep only recent searches
+    searchHistoryRef.current = searchHistoryRef.current.filter(
+      search => now - search.timestamp < 300000 // 5 minutes
+    );
+  }, []);
+
+  return { trackSearch };
+}
