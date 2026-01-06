@@ -8,7 +8,7 @@ declare global {
 }
 
 /**
- * Get device and geographic context (lightweight helper for all events)
+ * Get device, geographic, and referrer context (lightweight helper for all events)
  */
 const getDeviceGeoContext = () => {
   if (typeof window === 'undefined') return {};
@@ -16,10 +16,22 @@ const getDeviceGeoContext = () => {
   const userAgent = window.navigator.userAgent.toLowerCase();
   const locale = window.navigator.language || '';
 
+  // Get referrer information (where the user came from)
+  const referrer = typeof document !== 'undefined' ? document.referrer : '';
+  const referrerDomain = referrer ? (() => {
+    try {
+      return new URL(referrer).hostname;
+    } catch {
+      return undefined;
+    }
+  })() : undefined;
+
   return {
     device_type: userAgent.includes('mobile') || userAgent.includes('iphone') ? 'mobile' :
                  userAgent.includes('ipad') || userAgent.includes('tablet') ? 'tablet' : 'desktop',
     country: locale.split('-')[1] || undefined,
+    referrer: referrer || undefined,
+    referrer_domain: referrerDomain,
   };
 };
 
