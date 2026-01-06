@@ -7,6 +7,8 @@ import { ThemeSelector } from '@/components/ThemeSelector';
 import { DatabaseLoadingIndicator } from '@/components/DatabaseLoadingIndicator';
 import { useSearch } from '@/components/SearchProvider';
 import { PerformanceMetrics } from '@/types/search';
+import { useSearchTracking, useSessionTracking, useTimeTracking } from '@/hooks/useAnalytics';
+import { trackResultClick, trackFavoriteAction, trackViewToggle, trackFilterApplied, trackDatabaseLoad, trackLowRelevanceSearch } from '@/lib/analytics';
 
 interface SearchResult {
   id: number;
@@ -100,6 +102,12 @@ export default function Home() {
   const [organDropdownOpen, setOrganDropdownOpen] = useState(false);
   const lineageDropdownRef = useRef<HTMLDivElement>(null);
   const organDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Analytics hooks
+  const { trackKeystroke, trackSearchResults, trackResultClicked, searchStartTime } = useSearchTracking();
+  useSessionTracking(); // Tracks session start automatically
+  const { incrementSearchCount, incrementClickCount, incrementFavoritesAdded } = useTimeTracking();
+  const clickCountRef = useRef<number>(0);
   const [clickedResultId, setClickedResultId] = useState<number | null>(null); // Track clicked result for animation
   const [placeholderText, setPlaceholderText] = useState('');
   const [isUserTyping, setIsUserTyping] = useState(false);
@@ -116,9 +124,35 @@ export default function Home() {
   };
 
   // Handle result click to open URL and track history
-  const handleResultClick = async (result: SearchResult) => {
+  const handleResultClick = async (result: SearchResult, position: number) => {
     // Trigger click animation
     setClickedResultId(result.id);
+
+    // Track analytics for click
+    incrementClickCount();
+    clickCountRef.current++;
+    trackResultClicked(); // Triggers search completion tracking
+
+    // Track detailed result click
+    const timeSinceSearch = searchStartTime ? Date.now() - searchStartTime : 0;
+    trackResultClick({
+      resultId: result.metadata.case_id || result.id.toString(),
+      resultPosition: position + 1, // 1-indexed for analytics
+      diagnosis: result.metadata.extracted_diagnosis || result.metadata.essential_diagnosis || result.diagnosis,
+      organ: result.metadata.organ,
+      system: result.metadata.system,
+      source: result.metadata.source,
+      similarityScore: result.similarity,
+      query: query || secretSearchQuery,
+      isFirstClickInSession: clickCountRef.current === 1,
+      timeSinceSearchMs: timeSinceSearch,
+      totalResultsAvailable: filteredResults.length,
+      filtersActive: Array.from(selectedSources).concat(
+        Array.from(selectedSystems),
+        Array.from(selectedLineages),
+        Array.from(selectedOrgans)
+      ),
+    });
 
     // Save to history if user is authenticated (fire and forget)
     if (session?.user && result.metadata.case_id) {
@@ -190,6 +224,15 @@ export default function Home() {
             newSet.delete(caseId);
             return newSet;
           });
+
+          // Track analytics
+          trackFavoriteAction({
+            action: 'remove',
+            caseId,
+            fromPage: 'search',
+            isFirstFavorite: false,
+            totalFavoritesNow: favorites.size - 1,
+          });
         }
       } else {
         // Add to favorites
@@ -223,6 +266,19 @@ export default function Home() {
 
         if (response.ok) {
           setFavorites(prev => new Set(prev).add(caseId));
+
+          // Track analytics
+          incrementFavoritesAdded();
+          const position = filteredResults.findIndex(r => r.metadata.case_id === caseId);
+          trackFavoriteAction({
+            action: 'add',
+            caseId,
+            fromPage: 'search',
+            queryThatFoundIt: query || secretSearchQuery,
+            resultPosition: position >= 0 ? position + 1 : undefined,
+            isFirstFavorite: favorites.size === 0,
+            totalFavoritesNow: favorites.size + 1,
+          });
         }
       }
     } catch (error) {
@@ -452,13 +508,33 @@ export default function Home() {
     setLoading(true);
     setSearched(true);
 
+    // Increment search count for analytics
+    incrementSearchCount();
+
     try {
+      const startTime = performance.now();
+
       if (searchMode === 'client') {
         // Client mode: use SearchProvider's worker
         if (workerReady) {
           const response = await searchWorker(searchQuery, 24000);
+          const searchLatency = performance.now() - startTime;
+
           setResults(response.results);
           setPerformanceMetrics(response.performance);
+
+          // Track search results for analytics
+          trackSearchResults(searchQuery, response.results.length, searchLatency);
+
+          // Track low relevance if top result has similarity < 0.5
+          if (response.results.length > 0 && response.results[0].similarity < 0.5) {
+            trackLowRelevanceSearch({
+              query: searchQuery,
+              topSimilarityScore: response.results[0].similarity,
+              resultCount: response.results.length,
+            });
+          }
+
           setLoading(false);
         } else {
           // Worker not ready - show initialization status
@@ -474,6 +550,8 @@ export default function Home() {
         const data = await response.json();
 
         if (data.results) {
+          const searchLatency = performance.now() - startTime;
+
           setResults(data.results);
 
           // Enhance performance metrics with client-side telemetry
@@ -483,6 +561,18 @@ export default function Home() {
             networkTime: networkTime,
             clientTotalTime: clientTotalTime
           });
+
+          // Track search results for analytics
+          trackSearchResults(searchQuery, data.results.length, searchLatency);
+
+          // Track low relevance if top result has similarity < 0.5
+          if (data.results.length > 0 && data.results[0].similarity < 0.5) {
+            trackLowRelevanceSearch({
+              query: searchQuery,
+              topSimilarityScore: data.results[0].similarity,
+              resultCount: data.results.length,
+            });
+          }
         }
         setLoading(false);
       }
@@ -495,7 +585,10 @@ export default function Home() {
   }, [searchMode, workerReady, searchWorker]);
 
   // Handle user typing - clear secret search when user types
-  const handleQueryChange = (newQuery: string) => {
+  const handleQueryChange = (newQuery: string, isBackspace: boolean = false) => {
+    // Track keystroke for analytics
+    trackKeystroke(newQuery, isBackspace);
+
     setQuery(newQuery);
     if (newQuery.trim()) {
       // User is typing - clear secret search
@@ -791,7 +884,7 @@ export default function Home() {
                 </p>
               ) : searched ? (
                 <>
-                  {filteredResults.slice(0, 100).map((result) => {
+                  {filteredResults.slice(0, 100).map((result, index) => {
                   const m = result.metadata;
 
                   // Get values with AI fallbacks
@@ -826,7 +919,7 @@ export default function Home() {
                         <div className={showClinical ? 'space-y-3' : ''}>
                           {/* Top row: Organ (compact) or System + Organ (clinical), Diagnosis */}
                           <div
-                            onClick={() => handleResultClick(result)}
+                            onClick={() => handleResultClick(result, index)}
                             className={`${m.url ? 'cursor-pointer hover:opacity-80' : ''} ${showClinical ? '' : 'flex items-start gap-3'}`}
                             title={m.url ? 'Click to view case' : ''}
                           >
