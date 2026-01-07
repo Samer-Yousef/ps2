@@ -91,82 +91,6 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
-  // Track filter changes
-  const previousFiltersRef = useRef<{
-    sources: Set<string>;
-    systems: Set<string>;
-    lineages: Set<string>;
-    organs: Set<string>;
-  }>({
-    sources: new Set(SOURCES),
-    systems: new Set(),
-    lineages: new Set(),
-    organs: new Set(),
-  });
-
-  useEffect(() => {
-    // Track filter usage when filters change
-    const prev = previousFiltersRef.current;
-    const hasFilterChanged =
-      prev.sources.size !== selectedSources.size ||
-      prev.systems.size !== selectedSystems.size ||
-      prev.lineages.size !== selectedLineages.size ||
-      prev.organs.size !== selectedOrgans.size;
-
-    if (hasFilterChanged && currentItems.length > 0) {
-      const filterCombinations = [
-        ...Array.from(selectedSources),
-        ...Array.from(selectedSystems),
-        ...Array.from(selectedLineages),
-        ...Array.from(selectedOrgans),
-      ];
-
-      const itemsBeforeFilter = currentItems.length;
-      const itemsAfterFilter = filteredItems.length;
-
-      trackDashboardFilterUsage({
-        tab: activeTab,
-        filterCombinations,
-        itemsBeforeFilter,
-        itemsAfterFilter,
-        filterCleared: filterCombinations.length === 0,
-      });
-
-      previousFiltersRef.current = {
-        sources: new Set(selectedSources),
-        systems: new Set(selectedSystems),
-        lineages: new Set(selectedLineages),
-        organs: new Set(selectedOrgans),
-      };
-    }
-  }, [selectedSources, selectedSystems, selectedLineages, selectedOrgans, currentItems.length, filteredItems.length, activeTab]);
-
-  // Track dashboard search usage
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  useEffect(() => {
-    if (searchQuery.trim() && filteredItems.length >= 0) {
-      // Debounce search tracking
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-
-      searchTimeoutRef.current = setTimeout(() => {
-        trackDashboardSearch({
-          tab: activeTab,
-          query: searchQuery,
-          resultsCount: filteredItems.length,
-          totalItemsInTab: currentItems.length,
-        });
-      }, 1000); // Track after user stops typing for 1 second
-    }
-
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchQuery, filteredItems.length, currentItems.length, activeTab]);
-
   // Toggle filter functions
   const toggleSource = (source: string) => {
     const newSelected = new Set(selectedSources);
@@ -418,6 +342,82 @@ export default function DashboardPage() {
              item.caseId.toLowerCase().includes(query);
     });
   }, [lineageOrganFiltered, searchQuery]);
+
+  // Track filter changes
+  const previousFiltersRef = useRef<{
+    sources: Set<string>;
+    systems: Set<string>;
+    lineages: Set<string>;
+    organs: Set<string>;
+  }>({
+    sources: new Set(SOURCES),
+    systems: new Set(),
+    lineages: new Set(),
+    organs: new Set(),
+  });
+
+  useEffect(() => {
+    // Track filter usage when filters change
+    const prev = previousFiltersRef.current;
+    const hasFilterChanged =
+      prev.sources.size !== selectedSources.size ||
+      prev.systems.size !== selectedSystems.size ||
+      prev.lineages.size !== selectedLineages.size ||
+      prev.organs.size !== selectedOrgans.size;
+
+    if (hasFilterChanged && currentItems.length > 0) {
+      const filterCombinations = [
+        ...Array.from(selectedSources),
+        ...Array.from(selectedSystems),
+        ...Array.from(selectedLineages),
+        ...Array.from(selectedOrgans),
+      ];
+
+      const itemsBeforeFilter = currentItems.length;
+      const itemsAfterFilter = filteredItems.length;
+
+      trackDashboardFilterUsage({
+        tab: activeTab,
+        filterCombinations,
+        itemsBeforeFilter,
+        itemsAfterFilter,
+        filterCleared: filterCombinations.length === 0,
+      });
+
+      previousFiltersRef.current = {
+        sources: new Set(selectedSources),
+        systems: new Set(selectedSystems),
+        lineages: new Set(selectedLineages),
+        organs: new Set(selectedOrgans),
+      };
+    }
+  }, [selectedSources, selectedSystems, selectedLineages, selectedOrgans, currentItems.length, filteredItems.length, activeTab]);
+
+  // Track dashboard search usage
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (searchQuery.trim() && filteredItems.length >= 0) {
+      // Debounce search tracking
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+
+      searchTimeoutRef.current = setTimeout(() => {
+        trackDashboardSearch({
+          tab: activeTab,
+          query: searchQuery,
+          resultsCount: filteredItems.length,
+          totalItemsInTab: currentItems.length,
+        });
+      }, 1000); // Track after user stops typing for 1 second
+    }
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, filteredItems.length, currentItems.length, activeTab]);
 
   // Reset filters when tab changes
   useEffect(() => {
