@@ -440,18 +440,18 @@ export default function DashboardPage() {
     <main className="min-h-screen bg-white dark:bg-gray-900 sepia:bg-[#f5f1e8] p-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 sm:mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white sepia:text-gray-900">Dashboard</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white sepia:text-gray-900">Dashboard</h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 sepia:text-gray-700 mt-1">
               Welcome back, {session?.user?.name || session?.user?.email}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
             <ThemeSelector />
             <Link
               href="/"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="flex-1 sm:flex-initial px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center min-h-[44px] flex items-center justify-center"
             >
               Back to Search
             </Link>
@@ -484,17 +484,20 @@ export default function DashboardPage() {
 
         {/* Search and Controls */}
         <div className="mb-3">
-          <div className="flex gap-2 mb-3">
+          <div className="mb-2">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={`Search ${activeTab}...`}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] text-gray-900 dark:text-gray-100 sepia:text-gray-900 placeholder:text-gray-500 dark:placeholder:text-gray-400 sepia:placeholder:text-gray-600"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] text-gray-900 dark:text-gray-100 sepia:text-gray-900 placeholder:text-gray-500 dark:placeholder:text-gray-400 sepia:placeholder:text-gray-600 min-h-[44px]"
             />
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
             <button
               onClick={() => setShowClinical(!showClinical)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`flex-1 sm:flex-initial px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap min-h-[44px] ${
                 showClinical
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-white dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-300 sepia:text-gray-800 border border-gray-900 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8]'
@@ -507,7 +510,7 @@ export default function DashboardPage() {
                 setHideDiagnosis(!hideDiagnosis);
                 setRevealedDiagnoses(new Set());
               }}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              className={`flex-1 sm:flex-initial px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap min-h-[44px] ${
                 hideDiagnosis
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-white dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-300 sepia:text-gray-800 border border-gray-900 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8]'
@@ -518,7 +521,7 @@ export default function DashboardPage() {
             {currentItems.length > 0 && (
               <button
                 onClick={() => showRandomSlide(filteredItems)}
-                className="px-3 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors whitespace-nowrap"
+                className="flex-1 sm:flex-initial px-3 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors whitespace-nowrap min-h-[44px]"
               >
                 Show Random
               </button>
@@ -661,10 +664,10 @@ export default function DashboardPage() {
                         {/* Clickable content */}
                         <div
                           onClick={() => handleItemClick(item)}
-                          className={`${metadata.url ? 'cursor-pointer hover:opacity-80' : ''} ${showClinical ? '' : 'flex items-start gap-3'}`}
+                          className={`${metadata.url ? 'cursor-pointer hover:opacity-80' : ''} ${showClinical ? '' : 'flex flex-col sm:flex-row items-start gap-2 sm:gap-3'}`}
                         >
                           {/* Left: Organ and source */}
-                          <div className={showClinical ? 'mb-2' : 'w-32 shrink-0'}>
+                          <div className={showClinical ? 'mb-2' : 'w-full sm:w-28 lg:w-32 shrink-0 sm:text-right'}>
                             {showClinical && metadata.system && (
                               <div className="font-medium text-gray-900 dark:text-gray-100 sepia:text-gray-900 text-base">
                                 {metadata.system}
@@ -774,7 +777,7 @@ export default function DashboardPage() {
                     {activeTab === 'history' ? (
                       <button
                         onClick={(e) => toggleFavorite(item, e)}
-                        className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                        className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors min-w-[44px] min-h-[44px] ${
                           isFavorited
                             ? 'bg-red-100 dark:bg-red-900/30 sepia:bg-red-100 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/50 sepia:hover:bg-red-200'
                             : 'bg-gray-100 dark:bg-gray-800 sepia:bg-[#e8dfc8] text-gray-400 dark:text-gray-500 sepia:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 sepia:hover:bg-[#ddd0b8] hover:text-red-500'
@@ -823,8 +826,8 @@ export default function DashboardPage() {
 
       {/* Random Slide Modal */}
       {modalItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={closeModal}>
-          <div className="bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] rounded-lg shadow-xl max-w-2xl w-full p-6 border border-gray-200 dark:border-gray-700 sepia:border-[#d9d0c0]" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50" onClick={closeModal}>
+          <div className="bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] rounded-lg shadow-xl max-w-2xl w-full p-4 sm:p-6 border border-gray-200 dark:border-gray-700 sepia:border-[#d9d0c0] max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {/* Close button */}
             <div className="flex justify-between items-start mb-4">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white sepia:text-gray-900">Random Slide</h2>
@@ -896,21 +899,21 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-4">
                       {metadata.url ? (
                         <button
                           onClick={() => {
                             window.open(metadata.url, '_blank', 'noopener,noreferrer');
                             closeModal();
                           }}
-                          className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors"
+                          className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium transition-colors min-h-[44px]"
                         >
                           View Slide
                         </button>
                       ) : (
                         <button
                           disabled
-                          className="flex-1 px-4 py-3 bg-gray-300 dark:bg-gray-700 sepia:bg-gray-300 text-gray-500 dark:text-gray-500 sepia:text-gray-600 rounded-lg font-medium cursor-not-allowed"
+                          className="flex-1 px-4 py-3 bg-gray-300 dark:bg-gray-700 sepia:bg-gray-300 text-gray-500 dark:text-gray-500 sepia:text-gray-600 rounded-lg font-medium cursor-not-allowed min-h-[44px]"
                           title="URL not available"
                         >
                           URL Not Available
@@ -918,7 +921,7 @@ export default function DashboardPage() {
                       )}
                       <button
                         onClick={closeModal}
-                        className="px-4 py-3 bg-gray-200 dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-700 dark:text-gray-300 sepia:text-gray-900 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8] font-medium transition-colors"
+                        className="sm:flex-initial px-4 py-3 bg-gray-200 dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-700 dark:text-gray-300 sepia:text-gray-900 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8] font-medium transition-colors min-h-[44px]"
                       >
                         Close
                       </button>

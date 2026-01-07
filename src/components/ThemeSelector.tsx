@@ -31,7 +31,7 @@ export function ThemeSelector() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-8 h-8 text-lg rounded hover:bg-gray-100 dark:hover:bg-gray-800 sepia:hover:bg-[#e8dfc8] transition-colors opacity-60 hover:opacity-100"
+        className="flex items-center justify-center w-10 h-10 sm:w-8 sm:h-8 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 text-lg rounded hover:bg-gray-100 dark:hover:bg-gray-800 sepia:hover:bg-[#e8dfc8] transition-colors opacity-60 hover:opacity-100"
         title="Change theme"
       >
         <span>{currentTheme.icon}</span>
@@ -46,7 +46,7 @@ export function ThemeSelector() {
                 setTheme(t.value);
                 setIsOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
+              className={`w-full flex items-center gap-3 px-4 py-3 sm:py-2.5 text-sm transition-colors min-h-[44px] ${
                 theme === t.value
                   ? 'bg-blue-50 dark:bg-blue-900/20 sepia:bg-[#e8dfc8] text-blue-600 dark:text-blue-400 font-medium'
                   : 'hover:bg-gray-100 dark:hover:bg-gray-700 sepia:hover:bg-[#f0ebe0]'

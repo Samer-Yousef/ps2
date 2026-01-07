@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { ThemeSelector } from '@/components/ThemeSelector';
+import { BottomDrawer } from '@/components/BottomDrawer';
 import { DatabaseLoadingIndicator } from '@/components/DatabaseLoadingIndicator';
 import { useSearch } from '@/components/SearchProvider';
 import { PerformanceMetrics } from '@/types/search';
@@ -100,6 +101,7 @@ export default function Home() {
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null); // Performance tracking
   const [lineageDropdownOpen, setLineageDropdownOpen] = useState(false);
   const [organDropdownOpen, setOrganDropdownOpen] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const lineageDropdownRef = useRef<HTMLDivElement>(null);
   const organDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -674,11 +676,11 @@ export default function Home() {
 
       `}</style>
       {/* Main Content */}
-      <div className="flex-1 flex flex-col items-center p-4 pt-8">
+      <div className="flex-1 flex flex-col items-center p-3 sm:p-4 pt-4 sm:pt-8 lg:pt-8">
         <div className="w-full max-w-5xl">
           {/* User Navigation */}
-          <div className="flex justify-end items-center mb-4">
-            <div className="flex items-center gap-2">
+          <div className="flex justify-end items-center mb-3 sm:mb-4">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
               <ThemeSelector />
               {status === 'loading' ? (
                 <span className="text-sm text-gray-500">Loading...</span>
@@ -718,7 +720,7 @@ export default function Home() {
           </div>
 
           {/* Title */}
-          <h1 className="text-center text-6xl font-light tracking-wide mb-6">
+          <h1 className="text-center text-3xl sm:text-4xl lg:text-6xl font-light tracking-wide mb-4 sm:mb-6 px-2">
             Pathology <span style={{ color: '#0069ff' }}>Search</span>
           </h1>
 
@@ -750,8 +752,8 @@ export default function Home() {
         {/* Show filters and results with left sidebar */}
         {(searched || !query.trim()) && (
           <div className="flex gap-3">
-            {/* Left Sidebar - All Filters */}
-            <div className="w-fit shrink-0 space-y-2">
+            {/* Left Sidebar - All Filters (Desktop Only) */}
+            <div className="hidden lg:block w-fit shrink-0 space-y-2">
               {/* Action Buttons at Top - Side by Side */}
               {searched && results.length > 0 && (
                 <div className="flex gap-1">
@@ -904,6 +906,22 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Mobile Filters Button - Floating (Mobile Only) */}
+            {(searched || !query.trim()) && (
+              <div className="lg:hidden fixed bottom-6 right-6 z-30">
+                <button
+                  onClick={() => setMobileFiltersOpen(true)}
+                  className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors min-h-[56px] min-w-[56px]"
+                  aria-label="Open filters"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                  </svg>
+                  <span className="font-medium">Filters</span>
+                </button>
+              </div>
+            )}
+
             {/* Right Side - Results Only */}
             <div className="flex-1">
 
@@ -959,11 +977,11 @@ export default function Home() {
                           {/* Top row: Organ (compact) or System + Organ (clinical), Diagnosis */}
                           <div
                             onClick={() => handleResultClick(result, index)}
-                            className={`${m.url ? 'cursor-pointer hover:opacity-80' : ''} ${showClinical ? '' : 'flex items-start gap-3'}`}
+                            className={`${m.url ? 'cursor-pointer hover:opacity-80' : ''} ${showClinical ? '' : 'flex flex-col sm:flex-row items-start gap-2 sm:gap-3'}`}
                             title={m.url ? 'Click to view case' : ''}
                           >
                           {/* Organ only in compact, System + Organ in clinical */}
-                          <div className={showClinical ? 'mb-2' : 'w-20 shrink-0 text-right'}>
+                          <div className={showClinical ? 'mb-2' : 'w-full sm:w-20 shrink-0 sm:text-right'}>
                             {showClinical && m.system && (
                               <div className="font-medium text-gray-900 dark:text-gray-100 sepia:text-gray-900 text-base">
                                 {m.system}
@@ -1072,7 +1090,7 @@ export default function Home() {
                             e.preventDefault();
                             toggleFavorite(result, e);
                           }}
-                          className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                          className={`flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors min-w-[44px] min-h-[44px] ${
                             isFavorited
                               ? 'bg-red-100 dark:bg-red-900/30 sepia:bg-red-100 text-red-500 hover:bg-red-200 dark:hover:bg-red-900/50 sepia:hover:bg-red-200'
                               : 'bg-gray-100 dark:bg-gray-800 sepia:bg-[#e8dfc8] text-gray-400 dark:text-gray-500 sepia:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-700 sepia:hover:bg-[#ddd0b8] hover:text-red-500'
@@ -1103,6 +1121,134 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Mobile Filters Drawer */}
+        <BottomDrawer
+          isOpen={mobileFiltersOpen}
+          onClose={() => setMobileFiltersOpen(false)}
+          title="Filters"
+        >
+          <div className="space-y-4">
+            {/* Action Buttons at Top */}
+            {searched && results.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => setShowClinical(!showClinical)}
+                  className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                    showClinical
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-200 sepia:text-gray-900 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8]'
+                  }`}
+                >
+                  {showClinical ? 'Hide Clinical' : 'Show Clinical'}
+                </button>
+                <button
+                  onClick={() => {
+                    setHideDiagnosis(!hideDiagnosis);
+                    setRevealedDiagnoses(new Set());
+                  }}
+                  className={`w-full px-4 py-3 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+                    hideDiagnosis
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-white dark:bg-gray-700 sepia:bg-[#e8dfc8] text-gray-900 dark:text-gray-200 sepia:text-gray-900 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#ddd0b8]'
+                  }`}
+                >
+                  {hideDiagnosis ? 'Show Diagnoses' : 'Hide Diagnoses'}
+                </button>
+              </div>
+            )}
+
+            {/* System Filters */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 sepia:text-gray-800 mb-2">Systems</h3>
+              <div className="flex flex-col gap-2">
+                {SYSTEMS.map((system) => (
+                  <button
+                    key={system}
+                    onClick={() => toggleSystem(system)}
+                    className={`w-full px-4 py-3 text-sm rounded-lg transition-colors text-left min-h-[44px] ${
+                      selectedSystems.has(system)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-white dark:bg-gray-700 sepia:bg-[#faf8f3] text-gray-700 dark:text-gray-300 sepia:text-gray-800 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#f0ebe0]'
+                    }`}
+                  >
+                    {system}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Lineage Dropdown */}
+            {searched && lineageFrequencies.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 sepia:text-gray-800 mb-2">Lineage</h3>
+                <div className="space-y-2">
+                  {lineageFrequencies.map((lineage) => (
+                    <label
+                      key={lineage}
+                      className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-700 sepia:bg-[#faf8f3] border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#f0ebe0] cursor-pointer min-h-[44px]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedLineages.has(lineage)}
+                        onChange={() => toggleLineage(lineage)}
+                        className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-900 dark:text-gray-100 sepia:text-gray-900 flex-1">
+                        {lineage}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Organ Dropdown */}
+            {searched && organFrequencies.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 sepia:text-gray-800 mb-2">Organ</h3>
+                <div className="space-y-2">
+                  {organFrequencies.map((organ) => (
+                    <label
+                      key={organ}
+                      className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-700 sepia:bg-[#faf8f3] border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#f0ebe0] cursor-pointer min-h-[44px]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedOrgans.has(organ)}
+                        onChange={() => toggleOrgan(organ)}
+                        className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-900 dark:text-gray-100 sepia:text-gray-900 flex-1">
+                        {organ}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Source Filters */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 sepia:text-gray-800 mb-2">Sources</h3>
+              <div className="flex flex-col gap-2">
+                {SOURCES.map((source) => (
+                  <button
+                    key={source}
+                    onClick={() => toggleSource(source)}
+                    className={`w-full px-4 py-3 text-sm rounded-lg transition-colors text-left min-h-[44px] ${
+                      selectedSources.has(source)
+                        ? 'bg-teal-700 dark:bg-teal-800 text-white'
+                        : 'bg-white dark:bg-gray-700 sepia:bg-[#faf8f3] text-gray-700 dark:text-gray-300 sepia:text-gray-800 border border-gray-300 dark:border-gray-600 sepia:border-[#d9d0c0] hover:bg-gray-50 dark:hover:bg-gray-600 sepia:hover:bg-[#f0ebe0]'
+                    }`}
+                  >
+                    {source}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </BottomDrawer>
         </div>
       </div>
     </main>
