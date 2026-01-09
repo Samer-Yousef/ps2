@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { PerformanceMetrics } from '@/types/search';
+import { trackDatabaseLoad } from '@/lib/analytics';
 
 interface SearchResult {
   id: number;
@@ -24,6 +25,7 @@ interface SearchContextType {
   workerReady: boolean;
   initStatus: string;
   search: (query: string, limit?: number) => Promise<SearchResponse>;
+  dbLoadTimeMs: number | null;
 }
 
 const SearchContext = createContext<SearchContextType | undefined>(undefined);
@@ -32,8 +34,10 @@ export function SearchProvider({ children }: { children: ReactNode }) {
   const workerRef = useRef<Worker | null>(null);
   const [workerReady, setWorkerReady] = useState(false);
   const [initStatus, setInitStatus] = useState('Initializing...');
+  const [dbLoadTimeMs, setDbLoadTimeMs] = useState<number | null>(null);
   const searchCallbacksRef = useRef<Map<number, { resolve: (response: SearchResponse) => void; reject: (error: Error) => void }>>(new Map());
   const searchIdRef = useRef(0);
+  const dbLoadStartTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Only create worker once
@@ -42,6 +46,10 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     try {
       const w = new Worker('/searchWorker.js');
       workerRef.current = w;
+
+      // Track when database loading starts
+      dbLoadStartTimeRef.current = performance.now();
+
       w.postMessage({ type: 'init' });
 
       w.onmessage = (ev) => {
@@ -53,6 +61,16 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 
         if (msg.type === 'inited') {
           if (msg.status === 'ok') {
+            // Calculate database load time
+            const loadTime = dbLoadStartTimeRef.current ? performance.now() - dbLoadStartTimeRef.current : 0;
+            setDbLoadTimeMs(loadTime);
+
+            // Track database load completion
+            trackDatabaseLoad({
+              loadTimeMs: loadTime,
+              dbSizeEntries: msg.numEntries || 0,
+            });
+
             setWorkerReady(true);
             setInitStatus(`Ready • ${msg.numEntries.toLocaleString()} cases loaded`);
           } else {
@@ -124,7 +142,8 @@ export function SearchProvider({ children }: { children: ReactNode }) {
       worker: workerRef.current,
       workerReady,
       initStatus,
-      search
+      search,
+      dbLoadTimeMs
     }}>
       {children}
     </SearchContext.Provider>

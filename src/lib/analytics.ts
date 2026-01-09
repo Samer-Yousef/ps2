@@ -626,6 +626,25 @@ export const trackDatabaseLoad = (params: {
 };
 
 /**
+ * Track time to first search (from page load to first search, inclusive of DB load)
+ */
+export const trackTimeToFirstSearch = (params: {
+  timeFromPageLoadMs: number;
+  timeFromDbReadyMs: number;
+  firstQuery: string;
+  queryLength: number;
+  wasDbReadyBeforeSearch: boolean;
+}) => {
+  trackEvent('time_to_first_search', {
+    time_from_page_load_ms: params.timeFromPageLoadMs,
+    time_from_db_ready_ms: params.timeFromDbReadyMs,
+    first_query: params.firstQuery,
+    query_length: params.queryLength,
+    was_db_ready_before_search: params.wasDbReadyBeforeSearch,
+  });
+};
+
+/**
  * Track vector search performance
  */
 export const trackVectorSearchPerformance = (params: {

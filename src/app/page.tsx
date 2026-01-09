@@ -9,7 +9,7 @@ import { DatabaseLoadingIndicator } from '@/components/DatabaseLoadingIndicator'
 import { useSearch } from '@/components/SearchProvider';
 import { PerformanceMetrics } from '@/types/search';
 import { useSearchTracking, useSessionTracking, useTimeTracking, useScrollTracking, useHoverTracking, useClickPatternTracking, useRapidSearchTracking } from '@/hooks/useAnalytics';
-import { trackResultClick, trackFavoriteAction, trackViewToggle, trackFilterApplied, trackDatabaseLoad, trackLowRelevanceSearch } from '@/lib/analytics';
+import { trackResultClick, trackFavoriteAction, trackViewToggle, trackFilterApplied, trackDatabaseLoad, trackLowRelevanceSearch, trackTimeToFirstSearch } from '@/lib/analytics';
 
 interface SearchResult {
   id: number;
@@ -83,7 +83,7 @@ const EXAMPLE_QUERIES = [
 
 export default function Home() {
   const { data: session, status } = useSession();
-  const { workerReady, initStatus, search: searchWorker } = useSearch(); // Use SearchProvider's worker
+  const { workerReady, initStatus, search: searchWorker, dbLoadTimeMs } = useSearch(); // Use SearchProvider's worker
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -110,6 +110,11 @@ export default function Home() {
   useSessionTracking(); // Tracks session start automatically
   const { incrementSearchCount, incrementClickCount, incrementFavoritesAdded } = useTimeTracking();
   const clickCountRef = useRef<number>(0);
+
+  // Track time to first search
+  const pageLoadTimeRef = useRef<number>(typeof window !== 'undefined' ? performance.now() : 0);
+  const dbReadyTimeRef = useRef<number | null>(null);
+  const hasTrackedFirstSearch = useRef<boolean>(false);
 
   // Analytics hooks - Phase 2 (Behavioral tracking)
   const { trackScroll } = useScrollTracking();
@@ -364,6 +369,13 @@ export default function Home() {
     setSelectedOrgans(newSelected);
   };
 
+  // Track when database becomes ready
+  useEffect(() => {
+    if (workerReady && dbReadyTimeRef.current === null) {
+      dbReadyTimeRef.current = performance.now();
+    }
+  }, [workerReady]);
+
   // Auto-switch to client mode when worker is ready
   useEffect(() => {
     if (workerReady && searchMode === 'api') {
@@ -530,6 +542,21 @@ export default function Home() {
 
     // Increment search count for analytics
     incrementSearchCount();
+
+    // Track time to first search (only once)
+    if (!hasTrackedFirstSearch.current) {
+      hasTrackedFirstSearch.current = true;
+      const timeFromPageLoad = performance.now() - pageLoadTimeRef.current;
+      const timeFromDbReady = dbReadyTimeRef.current ? performance.now() - dbReadyTimeRef.current : 0;
+
+      trackTimeToFirstSearch({
+        timeFromPageLoadMs: timeFromPageLoad,
+        timeFromDbReadyMs: timeFromDbReady,
+        firstQuery: searchQuery,
+        queryLength: searchQuery.length,
+        wasDbReadyBeforeSearch: workerReady,
+      });
+    }
 
     try {
       const startTime = performance.now();
