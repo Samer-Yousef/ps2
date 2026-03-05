@@ -3,6 +3,7 @@ import { Neuton } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
+import { Footer } from "@/components/Footer";
 
 const neuton = Neuton({
   subsets: ["latin"],
@@ -11,8 +12,50 @@ const neuton = Neuton({
 });
 
 export const metadata: Metadata = {
-  title: "Pathology Search",
-  description: "Search and explore pathology cases",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
+  title: {
+    default: 'Pathology Search - Medical Education Case Database',
+    template: '%s | Pathology Search',
+  },
+  description: 'Comprehensive pathology case database for medical education. Search 26,000+ pathology cases with detailed microscopy, clinical data, and diagnoses.',
+  keywords: [
+    'pathology cases',
+    'medical education',
+    'histopathology',
+    'microscopy',
+    'pathology database',
+    'medical students',
+    'pathology residents',
+    'anatomical pathology',
+    'clinical pathology',
+  ],
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: '/',
+    siteName: 'Pathology Search',
+    title: 'Pathology Search - Medical Education Case Database',
+    description: 'Comprehensive pathology case database for medical education with 26,000+ cases.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pathology Search - Medical Education Case Database',
+    description: 'Comprehensive pathology case database for medical education.',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  category: 'Medical Education',
+  alternates: {
+    canonical: '/',
+  },
 };
 
 export default function RootLayout({
@@ -21,10 +64,55 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+
+  // Structured data for the website
+  const websiteStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Pathology Search",
+    "description": "Medical education pathology case database",
+    "url": baseUrl,
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": `${baseUrl}?q={search_term_string}`
+      },
+      "query-input": "required name=search_term_string"
+    },
+    "audience": {
+      "@type": "MedicalAudience",
+      "audienceType": ["Medical Students", "Pathology Residents"]
+    }
+  };
+
+  const datasetStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    "name": "Pathology Search Case Database",
+    "description": "Comprehensive pathology cases for medical education",
+    "url": baseUrl,
+    "keywords": ["pathology", "histopathology", "medical education"],
+    "creator": {
+      "@type": "Organization",
+      "name": "Pathology Search"
+    }
+  };
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${neuton.variable} antialiased`}>
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteStructuredData) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(datasetStructuredData) }}
+        />
+      </head>
+      <body className={`${neuton.variable} antialiased flex flex-col min-h-screen`}>
         {gaId && (
           <>
             <Script
@@ -44,7 +132,10 @@ export default function RootLayout({
             </Script>
           </>
         )}
-        <Providers>{children}</Providers>
+        <Providers>
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

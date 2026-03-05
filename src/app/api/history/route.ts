@@ -61,14 +61,34 @@ export async function POST(req: Request) {
       )
     }
 
-    // Create history entry
-    const historyEntry = await prisma.slideHistory.create({
-      data: {
+    // Check if entry already exists for this user + caseId
+    const existing = await prisma.slideHistory.findFirst({
+      where: {
         userId: session.user.id,
         caseId,
-        metadata: metadata ? JSON.stringify(metadata) : null
       }
     })
+
+    let historyEntry;
+    if (existing) {
+      // Update existing entry's timestamp
+      historyEntry = await prisma.slideHistory.update({
+        where: { id: existing.id },
+        data: {
+          viewedAt: new Date(),
+          metadata: metadata ? JSON.stringify(metadata) : null
+        }
+      })
+    } else {
+      // Create new entry
+      historyEntry = await prisma.slideHistory.create({
+        data: {
+          userId: session.user.id,
+          caseId,
+          metadata: metadata ? JSON.stringify(metadata) : null
+        }
+      })
+    }
 
     return NextResponse.json({
       success: true,

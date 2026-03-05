@@ -97,6 +97,7 @@ export default function Home() {
   const [selectedOrgans, setSelectedOrgans] = useState<Set<string>>(new Set());
   const [secretSearchQuery, setSecretSearchQuery] = useState(''); // For system-only search mode
   const [favorites, setFavorites] = useState<Set<string>>(new Set()); // Track user's favorite case IDs
+  const [history, setHistory] = useState<Map<string, Date>>(new Map()); // Track user's viewed slides (caseId → viewedAt)
   const [searchMode, setSearchMode] = useState<'client' | 'api'>('api'); // Toggle between client cache and API - defaults to API until worker loads
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics | null>(null); // Performance tracking
   const [lineageDropdownOpen, setLineageDropdownOpen] = useState(false);
@@ -179,37 +180,69 @@ export default function Home() {
     // Phase 2: End hover tracking (clicked after hover)
     endHover(true);
 
-    // Save to history if user is authenticated (fire and forget)
-    if (session?.user && result.metadata.case_id) {
-      fetch('/api/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          caseId: result.metadata.case_id,
-          metadata: JSON.stringify({
-            diagnosis: result.metadata.extracted_diagnosis || result.metadata.essential_diagnosis || result.diagnosis,
-            organ: result.metadata.organ,
-            system: result.metadata.system,
-            source: result.metadata.source,
-            url: result.metadata.url,
-            site: result.metadata.site,
-            site_ai: result.metadata.site_ai,
-            age: result.metadata.age,
-            age_ai: result.metadata.age_ai,
-            sex: result.metadata.sex,
-            sex_ai: result.metadata.sex_ai,
-            clinical_history: result.metadata.clinical_history,
-            clinical_history_ai: result.metadata.clinical_history_ai,
-            macroscopic: result.metadata.macroscopic,
-            macroscopic_ai: result.metadata.macroscopic_ai,
-            microscopic: result.metadata.microscopic,
-            stain: result.metadata.stain,
-            variant: result.metadata.variant,
-          })
-        })
-      }).catch(() => {
-        // Silent fail - history tracking shouldn't block navigation
+    // Save to history
+    if (result.metadata.case_id) {
+      // Update local state immediately
+      setHistory(prev => {
+        const newMap = new Map(prev);
+        newMap.set(result.metadata.case_id!, new Date());
+        return newMap;
       });
+
+      if (session?.user) {
+        // Logged in: save to database
+        fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            caseId: result.metadata.case_id,
+            metadata: JSON.stringify({
+              diagnosis: result.metadata.extracted_diagnosis || result.metadata.essential_diagnosis || result.diagnosis,
+              organ: result.metadata.organ,
+              system: result.metadata.system,
+              source: result.metadata.source,
+              url: result.metadata.url,
+              site: result.metadata.site,
+              site_ai: result.metadata.site_ai,
+              age: result.metadata.age,
+              age_ai: result.metadata.age_ai,
+              sex: result.metadata.sex,
+              sex_ai: result.metadata.sex_ai,
+              clinical_history: result.metadata.clinical_history,
+              clinical_history_ai: result.metadata.clinical_history_ai,
+              macroscopic: result.metadata.macroscopic,
+              macroscopic_ai: result.metadata.macroscopic_ai,
+              microscopic: result.metadata.microscopic,
+              stain: result.metadata.stain,
+              variant: result.metadata.variant,
+            })
+          })
+        }).catch(() => {
+          // Silent fail - history tracking shouldn't block navigation
+        });
+      } else {
+        // Not logged in: save to cookies (limit to 100 most recent)
+        try {
+          const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('slideHistory='))
+            ?.split('=')[1];
+          const existing = cookieValue ? JSON.parse(decodeURIComponent(cookieValue)) : {};
+          existing[result.metadata.case_id] = Date.now();
+
+          // Keep only 100 most recent entries
+          const entries = Object.entries(existing);
+          if (entries.length > 100) {
+            entries.sort((a, b) => (b[1] as number) - (a[1] as number));
+            const trimmed = Object.fromEntries(entries.slice(0, 100));
+            document.cookie = `slideHistory=${encodeURIComponent(JSON.stringify(trimmed))};path=/;max-age=31536000`;
+          } else {
+            document.cookie = `slideHistory=${encodeURIComponent(JSON.stringify(existing))};path=/;max-age=31536000`;
+          }
+        } catch {
+          // Silent fail
+        }
+      }
     }
 
     // Wait for animation to complete before opening URL
@@ -401,6 +434,49 @@ export default function Home() {
     }
   }, [session]);
 
+  // Fetch user's history on mount/login
+  useEffect(() => {
+    if (session?.user) {
+      fetch('/api/history')
+        .then(res => res.json())
+        .then(data => {
+          if (data.history) {
+            const historyMap = new Map<string, Date>();
+            data.history.forEach((h: any) => {
+              // Only keep the most recent view per case
+              if (!historyMap.has(h.caseId)) {
+                historyMap.set(h.caseId, new Date(h.viewedAt));
+              }
+            });
+            setHistory(historyMap);
+          }
+        })
+        .catch(() => {
+          // Silent fail - history is not critical
+        });
+    } else {
+      // Load history from cookies for non-logged-in users
+      try {
+        const cookieValue = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('slideHistory='))
+          ?.split('=')[1];
+        if (cookieValue) {
+          const parsed = JSON.parse(decodeURIComponent(cookieValue));
+          const historyMap = new Map<string, Date>();
+          Object.entries(parsed).forEach(([caseId, timestamp]) => {
+            historyMap.set(caseId, new Date(timestamp as number));
+          });
+          setHistory(historyMap);
+        } else {
+          setHistory(new Map());
+        }
+      } catch {
+        setHistory(new Map());
+      }
+    }
+  }, [session]);
+
   // Reset lineage/organ filters when query or system filters change
   useEffect(() => {
     setSelectedLineages(new Set());
@@ -429,14 +505,25 @@ export default function Home() {
       return;
     }
 
-    // Start at random position, then cycle through in order
-    let exampleIndex = Math.floor(Math.random() * EXAMPLE_QUERIES.length);
+    // If not logged in, prepend login message to example queries
+    const loginMessage = "Login to save slides to your Favorites and view your slide history";
+    const queries = session
+      ? EXAMPLE_QUERIES
+      : [loginMessage, ...EXAMPLE_QUERIES];
+
+    // Start at random position for regular queries (after login message if not logged in)
+    const startOffset = session ? 0 : 1; // Skip login message for random start if logged in
+    const randomStart = session
+      ? Math.floor(Math.random() * EXAMPLE_QUERIES.length)
+      : startOffset + Math.floor(Math.random() * EXAMPLE_QUERIES.length);
+
+    let exampleIndex = session ? randomStart : 0; // Always start with login message if not logged in
     let currentText = '';
     let isTyping = true;
     let timeoutId: NodeJS.Timeout;
 
     const typeText = async () => {
-      const targetText = EXAMPLE_QUERIES[exampleIndex];
+      const targetText = queries[exampleIndex];
       currentText = '';
       isTyping = true;
 
@@ -461,7 +548,7 @@ export default function Home() {
       }
 
       // Move to next example (cycle around)
-      exampleIndex = (exampleIndex + 1) % EXAMPLE_QUERIES.length;
+      exampleIndex = (exampleIndex + 1) % queries.length;
 
       // Start next example
       typeText();
@@ -473,7 +560,7 @@ export default function Home() {
       isTyping = false;
       clearTimeout(timeoutId);
     };
-  }, [workerReady, isUserTyping, query]);
+  }, [workerReady, isUserTyping, query, session]);
 
   // Filter results by selected sources (first level)
   const sourceFilteredResults = selectedSources.size === 0
@@ -705,9 +792,15 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center p-3 sm:p-4 pt-4 sm:pt-8 lg:pt-8">
         <div className="w-full max-w-5xl">
-          {/* User Navigation */}
-          <div className="flex justify-end items-center mb-3 sm:mb-4">
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
+          {/* Title and User Navigation */}
+          <div className="relative mb-4 sm:mb-6 px-2">
+            {/* Centered Title */}
+            <h1 className="text-center text-3xl sm:text-4xl lg:text-6xl font-light tracking-wide">
+              Pathology <span style={{ color: '#0069ff' }}>Search</span>
+            </h1>
+
+            {/* User Navigation - Positioned in top right */}
+            <div className="absolute top-0 right-2 flex items-center gap-1.5 sm:gap-2 flex-wrap justify-end">
               <ThemeSelector />
               {status === 'loading' ? (
                 <span className="text-sm text-gray-500">Loading...</span>
@@ -745,11 +838,6 @@ export default function Home() {
               )}
             </div>
           </div>
-
-          {/* Title */}
-          <h1 className="text-center text-3xl sm:text-4xl lg:text-6xl font-light tracking-wide mb-4 sm:mb-6 px-2">
-            Pathology <span style={{ color: '#0069ff' }}>Search</span>
-          </h1>
 
         <div className="mb-4">
           <form onSubmit={(e) => e.preventDefault()}>
@@ -983,6 +1071,8 @@ export default function Home() {
                   const showDiagnosisContent = !hideDiagnosis || isDiagnosisRevealed;
                   const isFavorited = result.metadata.case_id ? favorites.has(result.metadata.case_id) : false;
                   const isClicked = clickedResultId === result.id;
+                  const viewedAt = result.metadata.case_id ? history.get(result.metadata.case_id) : undefined;
+                  const isViewed = !!viewedAt;
 
                   return (
                     <div key={result.id} className="flex items-start gap-2">
@@ -995,9 +1085,11 @@ export default function Home() {
                           result.similarity
                         )}
                         onMouseLeave={() => endHover(false)}
-                        className={`flex-1 border border-gray-200 dark:border-gray-700 sepia:border-[#d9d0c0] rounded transition-all duration-200 bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] hover:bg-blue-50 dark:hover:bg-gray-700 sepia:hover:bg-[#e8dfc8] hover:border-blue-300 dark:hover:border-blue-600 sepia:hover:border-blue-400 hover:shadow-lg ${
-                          showClinical ? 'p-4' : 'px-3 py-1.5'
-                        } ${isClicked ? 'animate-result-click' : ''}`}
+                        className={`flex-1 border rounded transition-all duration-200 hover:border-blue-300 dark:hover:border-blue-600 sepia:hover:border-blue-400 hover:shadow-lg ${
+                          isViewed
+                            ? 'border-purple-300 dark:border-purple-700 sepia:border-purple-300 bg-purple-100 dark:bg-purple-900/40 sepia:bg-purple-100/60 hover:bg-purple-150 dark:hover:bg-purple-900/50 sepia:hover:bg-purple-100/80'
+                            : 'border-gray-200 dark:border-gray-700 sepia:border-[#d9d0c0] bg-white dark:bg-gray-800 sepia:bg-[#faf8f3] hover:bg-blue-50 dark:hover:bg-gray-700 sepia:hover:bg-[#e8dfc8]'
+                        } ${showClinical ? 'p-4' : 'px-3 py-1.5'} ${isClicked ? 'animate-result-click' : ''}`}
                         style={isClicked ? { animation: 'result-click 0.4s ease-out' } : {}}
                       >
                         <div className={showClinical ? 'space-y-3' : ''}>
@@ -1037,6 +1129,12 @@ export default function Home() {
                                 {m.variant && (
                                   <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 sepia:bg-amber-100 text-amber-700 dark:text-amber-300 sepia:text-amber-800 whitespace-nowrap">
                                     {m.variant}
+                                  </span>
+                                )}
+                                {/* Viewed badge */}
+                                {isViewed && viewedAt && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/50 sepia:bg-purple-100 text-purple-600 dark:text-purple-300 sepia:text-purple-700 whitespace-nowrap" title={`Viewed ${viewedAt.toLocaleString()}`}>
+                                    Viewed {viewedAt.toLocaleDateString()}
                                   </span>
                                 )}
                               </div>
