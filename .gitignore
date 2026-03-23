@@ -51,3 +51,6 @@ check-db.js
 public/pathology_vectordb.json
 public/pathology_vectordb_compressed.json
 public/onnx-model/model.onnx
+
+# Ad images
+/meta-ads/
