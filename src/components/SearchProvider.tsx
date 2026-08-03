@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { PerformanceMetrics } from '@/types/search';
-import { trackDatabaseLoad } from '@/lib/analytics';
+import { trackDatabaseLoad, getVisitorId } from '@/lib/analytics';
 
 interface SearchResult {
   id: number;
@@ -43,12 +43,38 @@ export function SearchProvider({ children }: { children: ReactNode }) {
     // Only create worker once
     if (workerRef.current) return;
 
+    // Since the 2026-08-03 cutover the root interface ships its own optimized worker +
+    // dataset (/v2-data). The legacy 83MB worker is only needed by the pages that still
+    // use useSearch(): /old (the previous interface) and /test.
+    if (typeof window !== 'undefined' && !/^\/(old|test)\b/.test(window.location.pathname)) {
+      setInitStatus('Skipped: this route does not use the legacy database');
+      return;
+    }
+
     try {
       const w = new Worker('/searchWorker.js');
       workerRef.current = w;
 
       // Track when database loading starts
       dbLoadStartTimeRef.current = performance.now();
+
+      // Log DB download start to local file
+      fetch('/api/log-db', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'DB_START', detail: 'Database download started', visitorId: getVisitorId() }),
+      }).catch(() => {});
+
+      // Log each second of loading
+      let dbLoadSeconds = 0;
+      const dbLoadInterval = setInterval(() => {
+        dbLoadSeconds++;
+        fetch('/api/log-db', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event: 'DB_LOADING', detail: `${dbLoadSeconds}s elapsed`, visitorId: getVisitorId() }),
+        }).catch(() => {});
+      }, 1000);
 
       w.postMessage({ type: 'init' });
 
@@ -61,6 +87,9 @@ export function SearchProvider({ children }: { children: ReactNode }) {
 
         if (msg.type === 'inited') {
           if (msg.status === 'ok') {
+            // Stop loading interval
+            clearInterval(dbLoadInterval);
+
             // Calculate database load time
             const loadTime = dbLoadStartTimeRef.current ? performance.now() - dbLoadStartTimeRef.current : 0;
             setDbLoadTimeMs(loadTime);
@@ -74,6 +103,7 @@ export function SearchProvider({ children }: { children: ReactNode }) {
             setWorkerReady(true);
             setInitStatus(`Ready • ${msg.numEntries.toLocaleString()} cases loaded`);
           } else {
+            clearInterval(dbLoadInterval);
             setInitStatus('Error loading database');
           }
         }

@@ -54,3 +54,19 @@ public/onnx-model/model.onnx
 
 # Ad images
 /meta-ads/
+
+# User-data logs — contain visitor IDs and account emails; never publish
+search-logs.txt
+db-logs.txt
+
+# v2 search data: source snapshot is a copy of the (also-ignored) compressed DB, and the
+# public/v2-data payloads are regenerated from it by scripts/prepare-v2-data.mjs.
+# Only the hand-written worker is code; everything else transfers to the server separately.
+data-v2/source-vectordb.json
+data-v2/eval/
+public/v2-data/cards.json
+public/v2-data/manifest.json
+public/v2-data/pca_model.json
+public/v2-data/vectors.i8
+public/v2-data/*.br
+public/v2-data/*.gz

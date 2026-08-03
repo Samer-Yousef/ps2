@@ -8,6 +8,23 @@ declare global {
 }
 
 /**
+ * Get or create a persistent anonymous visitor ID
+ */
+export const getVisitorId = (): string => {
+  if (typeof window === 'undefined') return '';
+  try {
+    let id = localStorage.getItem('visitor_id');
+    if (!id) {
+      id = 'v_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem('visitor_id', id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+};
+
+/**
  * Get device, geographic, and referrer context (lightweight helper for all events)
  */
 const getDeviceGeoContext = () => {
@@ -197,6 +214,8 @@ export const trackResultClick = (params: {
   timeSinceSearchMs: number;
   totalResultsAvailable: number;
   filtersActive: string[];
+  userEmail?: string;
+  userName?: string;
 }) => {
   trackEvent('result_click', {
     result_id: params.resultId,
@@ -212,6 +231,25 @@ export const trackResultClick = (params: {
     total_results_available: params.totalResultsAvailable,
     filters_active: params.filtersActive,
   });
+
+  // Log search query to local file
+  fetch('/api/log-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query: params.query,
+      diagnosis: params.diagnosis,
+      resultPosition: params.resultPosition,
+      organ: params.organ,
+      system: params.system,
+      source: params.source,
+      similarityScore: params.similarityScore,
+      totalResultsAvailable: params.totalResultsAvailable,
+      userEmail: params.userEmail,
+      userName: params.userName,
+      visitorId: getVisitorId(),
+    }),
+  }).catch(() => {});
 };
 
 /**
@@ -623,6 +661,17 @@ export const trackDatabaseLoad = (params: {
     load_time_ms: params.loadTimeMs,
     db_size_entries: params.dbSizeEntries,
   });
+
+  // Log database load to local file
+  fetch('/api/log-db', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      event: 'DB_LOAD',
+      detail: `${params.dbSizeEntries} entries in ${Math.round(params.loadTimeMs)}ms`,
+      visitorId: getVisitorId(),
+    }),
+  }).catch(() => {});
 };
 
 /**

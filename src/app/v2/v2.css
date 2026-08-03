@@ -1,0 +1,495 @@
+/* ===== Pathology Search v2 — Neuton serif · blue accent · light/dark ===== */
+.psv2 {
+  --v-bg: var(--background);
+  --v-fg: var(--foreground);
+  --v-muted: var(--muted);
+  --v-accent: var(--accent);            /* #0069ff */
+  --v-surface: var(--card-bg);
+  --v-border: #dcdfe5;
+  --v-border-strong: #c2c7d0;
+  --v-subtle: #f4f6f9;
+  --v-accent-soft: #e9f1ff;
+  --v-boxline: #000;                    /* search box outline — solid black */
+  --v-seen: #f3effb;
+  --v-seen-border: #d9cbef;
+  --v-seen-ink: #7c5cc4;
+  --shadow-sm: 0 1px 2px rgba(20, 24, 40, .05);
+  --shadow-md: 0 8px 26px -12px rgba(20, 24, 40, .28);
+  --p: 0;
+
+  color: var(--v-fg);
+  background: var(--v-bg);
+  min-height: 100vh;
+  font-family: var(--font-neuton), Georgia, "Times New Roman", serif;
+  -webkit-font-smoothing: antialiased;
+}
+html.dark .psv2 {
+  --v-border: #2a2f3a;
+  --v-border-strong: #3a4150;
+  --v-subtle: #17191f;
+  --v-accent-soft: rgba(0, 105, 255, .18);
+  --v-boxline: #e8ebf2;                 /* black would vanish on the dark ground */
+  --v-seen: rgba(124, 92, 196, .16);
+  --v-seen-border: rgba(150, 120, 220, .45);
+  --v-seen-ink: #b9a4e6;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+  --shadow-md: 0 10px 30px -14px rgba(0,0,0,.7);
+}
+
+.psv2 *, .psv2 *::before, .psv2 *::after { box-sizing: border-box; }
+.psv2 button { font-family: inherit; cursor: pointer; }
+.psv2 a { color: inherit; text-decoration: none; }
+.psv2 ::selection { background: var(--v-accent-soft); }
+
+/* ---------- sticky bar (title + search dock here) ---------- */
+.psv2-bar { position: sticky; top: 0; z-index: 50; height: 60px; }
+.psv2-bar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; background: var(--v-bg);
+  opacity: calc(0.9 * var(--p));
+  border-bottom: 1px solid color-mix(in srgb, var(--v-border) calc(var(--p) * 100%), transparent);
+  backdrop-filter: saturate(140%) blur(9px);
+}
+/* the docking title (absolute; JS interpolates left/top/font-size — crisp serif, no scale blur) */
+.psv2-title {
+  position: absolute; top: 0; left: 0; margin: 0; z-index: 2;
+  font-weight: 300; letter-spacing: .01em; line-height: 1.15; white-space: nowrap;
+  font-size: 21px; pointer-events: none; opacity: 0; will-change: left, top, font-size;
+}
+.psv2.ready .psv2-title { opacity: 1; }
+
+/* the docking search box (absolute; JS interpolates left/top/width/height) */
+.psv2-searchbox {
+  position: absolute; z-index: 2; display: flex; align-items: center; gap: 10px;
+  padding: 0; border-radius: 5px;   /* insets come from the System / Source controls at each end */
+  background: var(--v-surface); border: 1.5px solid var(--v-boxline);
+  box-shadow: var(--shadow-sm); transition: border-color .16s, box-shadow .16s;
+  opacity: 0;
+}
+.psv2.ready .psv2-searchbox { opacity: 1; }
+.psv2-searchbox:focus-within { border-color: var(--v-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--v-accent) 20%, transparent); }
+.psv2-searchbox .lead { color: var(--v-muted); display: grid; place-items: center; flex: none; }
+.psv2-searchbox input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent; color: var(--v-fg);
+  font-family: inherit; font-size: clamp(16px, calc(16px + 3 * (1 - var(--p))), 19px);
+}
+.psv2-searchbox input::placeholder { color: var(--v-muted); opacity: .85; }
+.psv2-clear { border: none; background: transparent; color: var(--v-muted); padding: 6px; border-radius: 7px; display: grid; place-items: center; flex: none; margin-right: 4px; }
+.psv2-clear:hover { color: var(--v-fg); background: var(--v-subtle); }
+
+/* ---------- study toggles: two stacked buttons, inline right of the search bar ---------- */
+/* JS sets left/top/width/height so the stack tracks the bar through the dock animation and
+   never exceeds its height. */
+.psv2-toggles {
+  position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 3px;
+  opacity: 0; transform: translateX(-6px) scale(.97); pointer-events: none;
+  transition: opacity .26s cubic-bezier(.2,.85,.28,1.06), transform .26s cubic-bezier(.2,.85,.28,1.06);
+}
+.psv2-toggles.on { opacity: 1; transform: none; pointer-events: auto; }
+.psv2-tog {
+  flex: 1; min-height: 0; width: 100%;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  border: 1px solid var(--v-border); background: var(--v-surface); color: var(--v-muted);
+  border-radius: 5px; padding: 0 6px; white-space: nowrap;
+  font: 500 clamp(9.5px, calc(9.5px + 1.5 * (1 - var(--p))), 11px) ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: .01em; line-height: 1;
+  transition: background .15s, border-color .15s, color .15s, transform .15s;
+}
+.psv2-tog:hover { border-color: var(--v-border-strong); color: var(--v-fg); }
+.psv2-tog:active { transform: scale(.96); }
+.psv2-tog.on { background: var(--v-accent); border-color: var(--v-accent); color: #fff; }
+.psv2-tog.on:hover { color: #fff; filter: brightness(1.06); }
+
+/* header actions (always top-right) */
+.psv2-actions { position: absolute; top: 0; right: 16px; height: 60px; z-index: 3; display: flex; align-items: center; gap: 10px; }
+
+/* user stats — small muted block top-left, the quiet mirror of the actions cluster */
+.psv2-stats {
+  position: absolute; top: 8px; left: 16px; z-index: 3;
+  font: 400 10.5px ui-sans-serif, system-ui, sans-serif; line-height: 1.7;
+  color: var(--v-muted);
+}
+.psv2-stats b { font-weight: 600; color: var(--v-fg); }
+.psv2-stats .rank { color: #b3261e; }
+html.dark .psv2-stats .rank { color: #ff8a80; }
+@media (max-width: 900px) { .psv2-stats { display: none; } }
+.psv2-link { font-size: 15px; color: var(--v-fg); background: transparent; border: none; padding: 6px 4px; border-radius: 7px; opacity: .85; transition: .14s; }
+.psv2-link:hover { opacity: 1; color: var(--v-accent); }
+.psv2-cta-sm { font-size: 14.5px; font-weight: 600; color: #fff; background: var(--v-accent); padding: 7px 14px; border-radius: 9px; transition: filter .15s; }
+.psv2-cta-sm:hover { filter: brightness(1.08); }
+.psv2-iconlink { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--v-border); display: grid; place-items: center; color: var(--v-fg); }
+.psv2-iconlink:hover { border-color: var(--v-border-strong); background: var(--v-subtle); }
+.psv2-toggle { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--v-border); background: var(--v-surface); color: var(--v-fg); display: grid; place-items: center; transition: .16s; flex: none; }
+.psv2-toggle:hover { border-color: var(--v-border-strong); background: var(--v-subtle); }
+.auth-compact { display: none; }
+
+/* reserves the hero's vertical room while undocked */
+.psv2-herospace { height: 168px; }
+
+/* ---------- system filter: the search bar's LEADING control ---------- */
+/* Lives in normal flex flow inside .psv2-searchbox: [glyph] SYSTEM ⌄ | input.
+   It is deliberately NOT position:relative — the morphing glyph/panel anchors to the
+   searchbox itself, so the expanded menu can align to the bar's outer edge. */
+.psv2-filter {
+  position: relative;                          /* each control anchors its OWN glyph + panel */
+  flex: none; align-self: stretch; display: flex; align-items: center; justify-content: flex-start;
+  padding: 0 10px;
+  border-right: 1px solid var(--v-border);     /* divider between the control and the input */
+  cursor: pointer;
+}
+/* Compact vertical stack: SYSTEM sits directly above the glyph. The cap's bottom padding
+   reserves the glyph's spot in flow (glyph itself is absolute so it can morph away). */
+.psv2-filter-cap {
+  border: none; background: transparent; padding: 0 0 28px 0;
+  font: 600 8.5px ui-sans-serif, system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--v-muted); line-height: 1; cursor: pointer;
+  transition: color .16s;
+}
+.psv2-filter:hover .psv2-filter-cap { color: var(--v-fg); }
+.psv2-filter[data-active="1"] .psv2-filter-cap { color: var(--v-accent); }
+
+/* animatable row dimensions — collapsed = thin stacked bars, expanded = labelled rows */
+@property --cw { syntax: "<length>"; inherits: true; initial-value: 15.6px; }
+@property --ch { syntax: "<length>"; inherits: true; initial-value: 1.6px; }
+@property --cg { syntax: "<length>"; inherits: true; initial-value: 0.8px; }
+@property --cp { syntax: "<length>"; inherits: true; initial-value: 2px; }
+
+/* The glyph IS the menu. Collapsed it sits inside the bar beside "System" as a tiny 2-column
+   mini-list (anchored to the searchbox, so top: 50% tracks the bar's height through the dock
+   animation). On hover/tap the SAME element morphs down out of the bar into the panel. */
+.psv2-filter-grid {
+  position: absolute; z-index: 6;
+  /* under the label: the control's centred content is label(8) + gap + glyph(24) ≈ 36px tall,
+     so the glyph's top edge sits 6px above the bar's midline. Left-aligned with the label. */
+  top: calc(50% - 6px); left: 10px;
+  --cw: 10px; --ch: 1.6px; --cg: 0.8px; --cp: 2px;
+  display: grid; grid-template-columns: repeat(2, var(--cw)); gap: var(--cg);
+  padding: var(--cp); border-radius: 4px; background: var(--v-surface);
+  border: 1px solid var(--v-border); box-shadow: none;
+  pointer-events: none;
+  transition: --cw .34s cubic-bezier(.2,.85,.28,1.06), --ch .34s cubic-bezier(.2,.85,.28,1.06),
+    --cg .34s ease, --cp .34s ease, border-radius .34s ease, box-shadow .34s ease,
+    top .34s cubic-bezier(.2,.85,.28,1.06), left .34s cubic-bezier(.2,.85,.28,1.06),
+    right .34s cubic-bezier(.2,.85,.28,1.06);
+}
+/* Expanded: a perfect 280 x 280 square dropping straight out of the bar, aligned to its outer
+   left edge. Padding is as tight as the type allows — --ch 32.25px is two 12.5px lines plus
+   ~2px, which the longest names ("Hepatopancreatobiliary & Peritoneal") need.
+     width  = 2 x 135 + 2 gap + 6 padding + 2 border = 280
+     height = 8 x 32.25 + 7 x 2 gap + 6 padding + 2 border = 280  */
+.psv2-filter:hover .psv2-filter-grid, .psv2-filter[data-open="1"] .psv2-filter-grid {
+  --cw: 135px; --ch: 32.25px; --cg: 2px; --cp: 3px;
+  border-radius: 0 0 10px 10px; box-shadow: var(--shadow-md); pointer-events: auto;
+  top: calc(100% + 1.5px); left: -1.5px;   /* clears the bar's bottom border */
+}
+
+/* ---------- source: the same control, 5 collections instead of 16 systems ---------- */
+/* One column x 5 rows, sized so it is also a perfect square:
+     height = 5 x 32.25 + 4 x 2 gap + 6 padding + 2 border = 177.25
+     width  = 169.25 + 6 padding + 2 border = 177.25                                    */
+.psv2-filter--src .psv2-filter-grid { grid-template-columns: var(--cw); }
+.psv2-filter--src:hover .psv2-filter-grid, .psv2-filter--src[data-open="1"] .psv2-filter-grid {
+  --cw: 169.25px;
+}
+/* Anchored to the far right end of the bar, with NO divider line (unlike System). Both the
+   collapsed glyph and the expanded panel are positioned from the right so the morph tracks
+   that edge instead of sliding across. */
+.psv2-filter--src { border-right: none; margin-left: auto; }
+.psv2-filter--src .psv2-filter-grid { left: auto; right: 10px; }
+.psv2-filter--src:hover .psv2-filter-grid, .psv2-filter--src[data-open="1"] .psv2-filter-grid {
+  left: auto; right: -1.5px;
+}
+
+.psv2-filter-grid .cell {
+  height: var(--ch); padding: 0; border-radius: 2px; border: 1px solid var(--v-border); background: var(--v-subtle);
+  color: var(--v-fg); font-size: 12.5px; line-height: 1.15; text-align: left;
+  display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 4px; overflow: hidden;
+  transition: background .12s, border-color .12s, color .12s, border-radius .34s ease, padding .34s ease;
+}
+.psv2-filter:hover .psv2-filter-grid .cell, .psv2-filter[data-open="1"] .psv2-filter-grid .cell {
+  border-radius: 5px; padding: 0 5px;
+}
+
+/* labels are empty (faded out) when collapsed, and populate in as it expands */
+/* two narrower columns, so the long names wrap to a second line rather than truncating */
+.psv2-filter-grid .cell .nm {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; line-height: 1.15; opacity: 0; transition: opacity .18s ease .04s;
+}
+.psv2-filter-grid .cell .c { flex: none; font-size: 11px; color: var(--v-muted); font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .18s ease .04s; }
+.psv2-filter:hover .psv2-filter-grid .cell .nm, .psv2-filter[data-open="1"] .psv2-filter-grid .cell .nm,
+.psv2-filter:hover .psv2-filter-grid .cell .c, .psv2-filter[data-open="1"] .psv2-filter-grid .cell .c { opacity: 1; }
+
+.psv2-filter-grid .cell:hover { border-color: var(--v-accent); color: var(--v-accent); }
+.psv2-filter-grid .cell.on { background: var(--v-accent); border-color: var(--v-accent); color: #fff; }   /* selected stays lit, collapsed or expanded */
+.psv2-filter-grid .cell.on .c { color: rgba(255,255,255,.8); }
+
+/* ---------- source cells: include/exclude model ---------- */
+/* Every source starts included and reads normal; excluding one greys it out and grows a
+   small EXCLUDED subcaption under the name. --ch (32.25px) already fits two lines. */
+.psv2-filter-grid .cell.src .nm { display: flex; flex-direction: column; justify-content: center; gap: 1px; }
+.psv2-filter-grid .cell.src .sub {
+  font: 600 8px ui-sans-serif, system-ui, sans-serif; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--v-muted); max-height: 0; opacity: 0; overflow: hidden;
+  transition: max-height .18s ease, opacity .15s ease;
+}
+.psv2-filter-grid .cell.src.off {
+  color: var(--v-muted);
+  background: color-mix(in srgb, var(--v-fg) 4%, var(--v-subtle));
+}
+.psv2-filter-grid .cell.src.off .sub { max-height: 10px; opacity: .75; }
+.psv2-filter-grid .cell.src.off:hover { border-color: var(--v-accent); color: var(--v-accent); }   /* re-include affordance */
+.psv2-filter-grid .cell.src.on:hover { filter: brightness(.92); }                                  /* exclude affordance */
+
+@media (max-width: 540px) {
+  .psv2-filter:hover .psv2-filter-grid, .psv2-filter[data-open="1"] .psv2-filter-grid { --cw: 139.5px; --ch: 33.125px; }
+}
+
+/* ---------- results ---------- */
+.psv2-results { max-width: 980px; margin: 0 auto; padding: 6px 20px 90px; }
+.psv2-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+/* active filters: one compact dismissable chip EACH (source exclusions get the grey variant) */
+.psv2-clearfilter {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; color: var(--v-accent); background: var(--v-accent-soft);
+  border: none; padding: 3px 8px; border-radius: 999px; line-height: 1.2;
+  transition: filter .14s;
+}
+.psv2-clearfilter .cap { text-transform: capitalize; }
+.psv2-clearfilter:hover { filter: brightness(.95); }
+.psv2-clearfilter--ex { color: var(--v-muted); background: color-mix(in srgb, var(--v-fg) 7%, transparent); }
+
+/* rows — compact, one visual line of content + one meta line */
+.psv2-list { display: flex; flex-direction: column; gap: 6px; }
+.psv2-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  background: var(--v-surface); border: 1px solid var(--v-border); border-radius: 9px;
+  padding: 7px 12px; transition: border-color .12s, background .12s;
+}
+.psv2-row:hover { border-color: var(--v-accent); background: var(--v-subtle); }
+.psv2-row.seen { background: var(--v-seen); border-color: var(--v-seen-border); }
+.psv2-row.seen:hover { border-color: var(--v-seen-ink); }
+.psv2-main { flex: 1; min-width: 0; }
+.psv2-dxline { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.psv2-dx { font-size: 16px; font-weight: 500; color: var(--v-accent); line-height: 1.3; text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.dark .psv2 .psv2-dx { color: #eef3fb; }                 /* blue reads poorly on dark — near-white instead */
+html.dark .psv2 .psv2-row:hover .psv2-dx { color: #fff; }
+.psv2-row.seen .psv2-dx { color: var(--v-seen-ink); }
+html.dark .psv2 .psv2-row.seen .psv2-dx { color: var(--v-seen-ink); }
+.psv2-seen { flex: none; font-size: 11px; font-weight: 600; color: var(--v-seen-ink); background: color-mix(in srgb, var(--v-seen-ink) 12%, transparent); border-radius: 5px; padding: 1px 7px; letter-spacing: .01em; }
+.psv2-meta { font-size: 12.5px; color: var(--v-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.psv2-meta .cap { text-transform: capitalize; }
+/* formal diagnosis shown beside the metadata — sentence case, not title case, since it is a
+   full diagnosis rather than a one-word label like the organ or system */
+.psv2-meta .dx2 { text-transform: none; display: inline-block; }
+.psv2-meta .dx2::first-letter { text-transform: uppercase; }
+.psv2-meta .d { opacity: .45; padding: 0 5px; }
+
+/* masked diagnosis — the per-row reveal, matching the main site's study mode */
+.psv2-reveal {
+  border: 1px dashed var(--v-border-strong); background: transparent; color: var(--v-muted);
+  font: 500 12.5px ui-sans-serif, system-ui, sans-serif;
+  padding: 2px 10px; border-radius: 6px; line-height: 1.3;
+  transition: border-color .14s, color .14s, background .14s;
+}
+.psv2-reveal:hover { border-color: var(--v-accent); color: var(--v-accent); background: var(--v-accent-soft); }
+
+/* clinical detail, revealed by the Show clinical toggle */
+.psv2-clin {
+  margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--v-border);
+  display: flex; flex-direction: column; gap: 3px;
+  animation: psv2-clin-in .22s cubic-bezier(.2,.85,.28,1.06) both;
+}
+.psv2-clin p { margin: 0; font-size: 12.5px; color: var(--v-muted); line-height: 1.4; }
+.psv2-clin b { color: var(--v-fg); font-weight: 600; margin-right: 4px; }
+.psv2-clin .cap { text-transform: capitalize; }
+.psv2-clin .dx2 { display: inline-block; }
+.psv2-clin .dx2::first-letter { text-transform: uppercase; }
+@keyframes psv2-clin-in { from { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .psv2-clin { animation: none; } }
+.psv2-act { flex: none; display: flex; align-items: center; gap: 8px; }
+.psv2-pill { font-size: 11px; font-weight: 600; color: var(--v-muted); background: var(--v-subtle); border: 1px solid var(--v-border); padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+html.dark .psv2 .psv2-pill { background: #1c1f27; }
+.psv2-fav { width: 30px; height: 30px; border-radius: 8px; border: none; background: transparent; color: var(--v-muted); display: grid; place-items: center; transition: .13s; }
+.psv2-fav:hover { color: #e0356b; background: color-mix(in srgb, #e0356b 12%, transparent); }
+.psv2-fav.on { color: #e0356b; }
+.psv2-fav.on svg { fill: #e0356b; }
+.psv2-chev { color: var(--v-muted); display: grid; place-items: center; transition: transform .13s, color .13s; }
+.psv2-row:hover .psv2-chev { color: var(--v-accent); transform: translateX(2px); }
+
+.psv2-skel { background: var(--v-surface); border: 1px solid var(--v-border); border-radius: 9px; height: 50px; overflow: hidden; position: relative; }
+.psv2-skel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--v-fg) 6%, transparent), transparent); transform: translateX(-100%); animation: psv2-shimmer 1.3s infinite; }
+@keyframes psv2-shimmer { 100% { transform: translateX(100%); } }
+.psv2-empty { text-align: center; color: var(--v-muted); padding: 50px 20px; font-size: 15px; }
+
+/* ---------- database loading screen ---------- */
+/* Same box language as the search bar: thin solid outline, barely-rounded corners.
+   Fades in after a .25s delay — a warm IndexedDB load (~250ms) finishes before it shows. */
+.psv2-loadpanel {
+  max-width: 460px; margin: 26px auto 0; padding: 30px 34px 26px;
+  display: flex; flex-direction: column; align-items: center;
+  background: var(--v-surface); border: 1.5px solid var(--v-boxline); border-radius: 5px;
+  opacity: 0; animation: psv2-loadin .4s ease .25s forwards;
+}
+@keyframes psv2-loadin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.psv2-loadspin { width: 40px; height: 40px; color: var(--v-accent); animation: psv2-spin .8s linear infinite; margin-bottom: 16px; }
+.psv2-loadspin .tr { opacity: .2; }
+@keyframes psv2-spin { to { transform: rotate(360deg); } }
+.psv2-loadstatus { font-size: 18px; color: var(--v-fg); margin-bottom: 14px; }
+.psv2-loadbar {
+  width: 100%; max-width: 320px; height: 6px; border-radius: 3px; overflow: hidden;
+  background: color-mix(in srgb, var(--v-fg) 9%, transparent);
+}
+.psv2-loadfill { height: 100%; border-radius: 3px; background: var(--v-accent); transition: width .25s ease-out; }
+.psv2-loadmeta {
+  display: flex; align-items: center; gap: 9px; margin-top: 10px;
+  font: 500 12px ui-sans-serif, system-ui, sans-serif; color: var(--v-muted); letter-spacing: .02em;
+}
+.psv2-loadmeta .pct { font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+.psv2-loadmeta .dot { opacity: .5; }
+.psv2-loaddesc { margin-top: 14px; font-size: 14px; color: var(--v-muted); text-align: center; }
+@media (prefers-reduced-motion: reduce) {
+  .psv2-loadpanel { animation-duration: .01s; animation-delay: 0s; }
+  .psv2-loadspin { animation-duration: 2.4s; }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 820px) {
+  .auth-full { display: none; }
+  .auth-compact { display: grid; }
+  .psv2-actions { right: 12px; gap: 8px; }
+  .psv2.docked .psv2-title { opacity: 0; transition: opacity .15s; }
+}
+
+/* ---------- theme change: circular reveal from the toggle button ---------- */
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-new(root) { z-index: 2147483646; }
+::view-transition-old(root) { z-index: 1; }
+
+/* ---------- signup prompt variants ---------- */
+.psv2m-ovl {
+  position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 12, 20, .45); backdrop-filter: blur(2px);
+  animation: psv2m-fade .22s ease both;
+}
+@keyframes psv2m-fade { from { opacity: 0; } }
+.psv2m-card {
+  position: relative; width: 100%; max-width: 430px; margin: 16px;
+  background: var(--v-surface); border: 1.5px solid var(--v-boxline); border-radius: 6px;
+  padding: 26px 28px 24px; box-shadow: var(--shadow-md);
+  animation: psv2m-up .3s cubic-bezier(.2,.85,.28,1.06) both;
+}
+@keyframes psv2m-up { from { opacity: 0; transform: translateY(14px) scale(.98); } }
+.psv2m-x {
+  position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; border: none;
+  background: var(--v-subtle); color: var(--v-muted); transition: background .13s, color .13s;
+}
+.psv2m-x:hover { background: var(--v-accent-soft); color: var(--v-accent); }
+.psv2m-h { font-size: 22px; font-weight: 700; margin: 0 26px 12px 0; color: var(--v-fg); }
+.psv2m-sub { font: 400 13px/1.55 ui-sans-serif, system-ui, sans-serif; color: var(--v-muted); margin: 0 0 14px; }
+.psv2m-err {
+  font: 500 12px ui-sans-serif, system-ui, sans-serif; color: #dc2626;
+  background: rgba(220, 38, 38, .08); border: 1px solid rgba(220, 38, 38, .25);
+  border-radius: 4px; padding: 6px 9px; margin-bottom: 10px;
+}
+.psv2m-goog {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px; border: 1.5px solid var(--v-boxline); border-radius: 5px;
+  background: var(--v-surface); color: var(--v-fg);
+  font: 600 13px ui-sans-serif, system-ui, sans-serif; transition: background .13s, transform .1s;
+}
+.psv2m-goog:hover { background: var(--v-subtle); }
+.psv2m-goog:active { transform: scale(.985); }
+.psv2m-alt {
+  display: block; width: 100%; text-align: center; margin-top: 10px; border: none; background: none;
+  font: 500 12px ui-sans-serif, system-ui, sans-serif; color: var(--v-muted); text-decoration: none;
+  cursor: pointer; transition: color .13s;
+}
+.psv2m-alt:hover { color: var(--v-accent); }
+.psv2m-form { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
+.psv2m-form input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--v-border-strong); border-radius: 4px;
+  background: var(--v-bg); color: var(--v-fg); font: 400 13px ui-sans-serif, system-ui, sans-serif;
+  outline: none; box-sizing: border-box;
+}
+.psv2m-form input:focus { border-color: var(--v-accent); }
+.psv2m-cta {
+  width: 100%; padding: 10px; border: none; border-radius: 5px; background: var(--v-accent); color: #fff;
+  font: 600 13px ui-sans-serif, system-ui, sans-serif; transition: filter .13s, transform .1s;
+}
+.psv2m-cta:hover { filter: brightness(.94); }
+.psv2m-cta:active { transform: scale(.985); }
+.psv2m-success { text-align: center; padding: 14px 0; }
+.psv2m-success .tick { font-size: 30px; color: var(--v-accent); margin-bottom: 6px; }
+.psv2m-success h3 { font-size: 17px; margin: 0 0 3px; color: var(--v-fg); }
+.psv2m-success p { font: 400 12.5px ui-sans-serif, system-ui, sans-serif; color: var(--v-muted); margin: 0; }
+
+/* variant A: the session slide list */
+.psv2m-slides { display: flex; flex-direction: column; gap: 5px; margin: 0 0 13px; }
+.psv2m-slide {
+  display: flex; align-items: center; gap: 9px; padding: 7px 11px;
+  border: 1px solid var(--v-seen-border); background: var(--v-seen); border-radius: 6px;
+  font-size: 14.5px; color: var(--v-fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: psv2m-up .3s cubic-bezier(.2,.85,.28,1.06) backwards;
+}
+.psv2m-slide:nth-child(2) { animation-delay: .05s; } .psv2m-slide:nth-child(3) { animation-delay: .1s; }
+.psv2m-slide:nth-child(4) { animation-delay: .15s; } .psv2m-slide:nth-child(5) { animation-delay: .2s; }
+.psv2m-slide .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--v-seen-ink); }
+
+/* variant B: the forgetting curve */
+.psv2m-curve {
+  position: relative; height: 108px; margin: 2px 0 14px; padding: 6px 8px 2px;
+  border: 1px solid var(--v-border); border-radius: 6px; background: var(--v-subtle);
+}
+.psv2m-curve svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.psv2m-curve path { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.psv2m-curve .fade {
+  stroke: var(--v-muted); stroke-dasharray: 5 5; opacity: .55;
+}
+.psv2m-curve .keep {
+  stroke: var(--v-accent);
+  stroke-dasharray: 640; stroke-dashoffset: 640; animation: psv2m-draw 1.1s ease-out .25s forwards;
+}
+@keyframes psv2m-draw { to { stroke-dashoffset: 0; } }
+.psv2m-curve .lbl {
+  position: absolute; font: 600 9.5px ui-sans-serif, system-ui, sans-serif; letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.psv2m-curve .fade-l { right: 10px; bottom: 8px; color: var(--v-muted); opacity: .75; }
+.psv2m-curve .keep-l { right: 10px; top: 22px; color: var(--v-accent); }
+
+/* variant C: non-blocking corner card */
+.psv2m-corner {
+  position: fixed; right: 18px; bottom: 18px; z-index: 9999; width: 320px; max-width: calc(100vw - 36px);
+  background: var(--v-surface); border: 1.5px solid var(--v-boxline); border-radius: 6px;
+  padding: 16px 18px 14px; box-shadow: var(--shadow-md);
+  animation: psv2m-slidein .38s cubic-bezier(.2,.85,.28,1.06) both;
+}
+@keyframes psv2m-slidein { from { opacity: 0; transform: translateX(24px); } }
+.psv2m-ch { font-size: 17px; font-weight: 700; margin: 0 30px 5px 0; color: var(--v-fg); }
+.psv2m-csub { font: 400 12px/1.5 ui-sans-serif, system-ui, sans-serif; color: var(--v-muted); margin: 0 0 11px; }
+.psv2m-corner .psv2m-x { top: 8px; right: 8px; width: 28px; height: 28px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .psv2m-ovl, .psv2m-card, .psv2m-slide, .psv2m-bars .bar, .psv2m-corner { animation-duration: .01s; animation-delay: 0s; }
+}
+
+/* ---------- returning-user feedback card (corner form factor) ---------- */
+.psv2f .psv2m-ch { margin-bottom: 10px; }
+.psv2f-q { font: 500 12.5px/1.45 ui-sans-serif, system-ui, sans-serif; color: var(--v-fg); margin: 0 0 7px; }
+.psv2f-opts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.psv2f-opt {
+  border: 1px solid var(--v-border-strong); background: var(--v-surface); color: var(--v-fg);
+  font: 500 12px ui-sans-serif, system-ui, sans-serif; padding: 6px 11px; border-radius: 999px;
+  transition: background .13s, border-color .13s, color .13s, opacity .13s, transform .1s;
+}
+.psv2f-opt:hover { border-color: var(--v-accent); color: var(--v-accent); }
+.psv2f-opt:active { transform: scale(.96); }
+.psv2f-opt.on { background: var(--v-accent); border-color: var(--v-accent); color: #fff; }
+.psv2f-opt.dim { opacity: .45; }
+.psv2f-peek {
+  display: inline-block; font: 500 11px ui-sans-serif, system-ui, sans-serif;
+  color: var(--v-muted); margin: 0 0 13px; text-decoration: none;
+}
+.psv2f-peek:hover { color: var(--v-accent); }
+.psv2f-thanks { font: 500 14px ui-sans-serif, system-ui, sans-serif; color: var(--v-fg); padding: 8px 0 4px; }
