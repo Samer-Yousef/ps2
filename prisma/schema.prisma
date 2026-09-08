@@ -24,6 +24,21 @@ model User {
   sessions      Session[]
   history       SlideHistory[]
   favorites     Favorite[]
+  passwordResets PasswordResetToken[]
+}
+
+// Single-use, expiring tokens for the forgot-password flow.
+// Only a SHA-256 hash of the token is stored; the raw token lives in the email link.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expires   DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // OAuth account connections (Google, GitHub, etc.)
