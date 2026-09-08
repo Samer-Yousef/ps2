@@ -3,6 +3,8 @@ import { readFile, stat } from 'fs/promises';
 import { join } from 'path';
 import { auth } from '@/lib/auth';
 import { getBlockedVisitorIds } from '@/lib/botProtection';
+import { AUTH_LOG } from '@/lib/authLog';
+import { analyseAuthLog } from '@/lib/authLogStats';
 
 const SEARCH_LOG = join(process.cwd(), 'search-logs.txt');
 const ADMIN_EMAIL = 'fleshbits@gmail.com';
@@ -277,11 +279,14 @@ export async function GET(request: Request) {
   try {
     const cutover = new URL(request.url).searchParams.get('cutover');
     const st = await stat(SEARCH_LOG);
-    const key = `${st.size}:${st.mtimeMs}:${cutover || ''}`;
+    // auth-logs.txt appears with the first password-reset request; absent = no resets yet
+    const ast = await stat(AUTH_LOG).catch(() => null);
+    const key = `${st.size}:${st.mtimeMs}:${ast?.size ?? 0}:${ast?.mtimeMs ?? 0}:${cutover || ''}`;
     if (cache?.key === key) return NextResponse.json(cache.data);
 
     const text = await readFile(SEARCH_LOG, 'utf-8');
-    const data = analyse(text, cutover);
+    const authText = ast ? await readFile(AUTH_LOG, 'utf-8') : '';
+    const data = { ...analyse(text, cutover), passwordReset: analyseAuthLog(authText) };
     cache = { key, data };
     return NextResponse.json(data);
   } catch (err) {

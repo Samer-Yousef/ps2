@@ -22,17 +22,18 @@ export async function findUserByEmail(emailRaw: string) {
   return prisma.user.findUnique({ where: { id: rows[0].id } })
 }
 
-/** Creates a fresh token for the user and returns the RAW token (never stored). */
-export async function createResetToken(userId: string): Promise<string> {
+/** Creates a fresh token for the user. Returns the RAW token (never stored) and the row id (for logs). */
+export async function createResetToken(userId: string): Promise<{ token: string; id: string }> {
   const token = randomBytes(32).toString('base64url')
-  await prisma.passwordResetToken.create({
+  const row = await prisma.passwordResetToken.create({
     data: {
       userId,
       tokenHash: hashToken(token),
       expires: new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000),
     },
+    select: { id: true },
   })
-  return token
+  return { token, id: row.id }
 }
 
 /** True if a reset email was sent to this user within the cooldown window. */

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import './insights.css';
+import type { ResetStats } from '@/lib/authLogStats';
 
 type Named = { s: string; n: number; pct?: number };
 type Data = {
@@ -35,6 +36,21 @@ type Data = {
   feedback: { shown: number; dismissed: number;
     design: { newUi: number; oldUi: number; unsure: number };
     upload: { yes: number; no: number } };
+  passwordReset: ResetStats;
+};
+
+const RESET_OUTCOME: Record<ResetStats['recent'][number]['outcome'], { label: string; cls: string }> = {
+  reset: { label: 'Password reset', cls: 'ok' },
+  opened: { label: 'Link opened, not finished', cls: 'w' },
+  sent: { label: 'Emailed, not opened yet', cls: '' },
+  expired: { label: 'Expired unused', cls: 'b' },
+  google: { label: 'Google account', cls: '' },
+  unknown: { label: 'No account', cls: '' },
+};
+
+const timeLabel = (iso: string) => {
+  const d = new Date(iso);
+  return `${prettyDate(iso.slice(0, 10))} ${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
 };
 type Cohort = {
   clicks: number; days: number; clicksPerDay: number; visitors: number; visitorsPerDay: number;
@@ -445,6 +461,79 @@ export default function InsightsPage() {
             )}
           </section>
 
+          <section className="psi-panel psi-c12">
+            <h2>Password resets</h2>
+            {(() => {
+              const r = data.passwordReset;
+              if (!r.requests) {
+                return <div className="psi-callout"><p>No password-reset requests yet. This panel fills in from the first one.</p></div>;
+              }
+              const maxDay = Math.max(...r.daily.map(d => d[1]), 1);
+              return (
+                <div className="psi-reset">
+                  <div>
+                    <p className="psi-note">
+                      Every submission of the forgot-password form, and how far each emailed link got.
+                      Counts are per link; the funnel is what you want to watch.
+                    </p>
+                    <div className="psi-steps">
+                      <div className="psi-step"><span>Form submitted</span><b>{fmt(r.requests)}</b></div>
+                      <div className="psi-step"><span>Reset link emailed</span><b>{fmt(r.sent)}</b></div>
+                      <div className="psi-step"><span>Link opened</span><b>{fmt(r.opened)}</b></div>
+                      <div className="psi-step win"><span>Password changed</span><b>{fmt(r.success)}</b></div>
+                    </div>
+                    <div className="psi-callout">
+                      <p>
+                        <strong>{r.convSent}%</strong> of emailed links ended in a new password
+                        {r.opened ? <> (<strong>{r.convOpened}%</strong> of those opened)</> : null}
+                        {r.medianMinutes != null ? <>; median <strong>{r.medianMinutes} min</strong> from request to reset</> : null}.
+                      </p>
+                    </div>
+                    <div className="psi-chips">
+                      <span className="psi-chip">{fmt(r.unknown)} no account</span>
+                      <span className="psi-chip">{fmt(r.google)} Google-only</span>
+                      <span className="psi-chip">{fmt(r.throttled)} throttled</span>
+                      <span className="psi-chip">{fmt(r.invalidOpens)} dead-link opens</span>
+                      <span className="psi-chip">{fmt(r.failed)} failed submits</span>
+                      {r.sendFailed > 0 && <span className="psi-chip" style={{ color: '#b3261e' }}>{fmt(r.sendFailed)} email send failures</span>}
+                    </div>
+                    {r.daily.length > 1 && (
+                      <>
+                        <p className="psi-note" style={{ margin: '18px 0 6px' }}>Links sent per day (filled = reset).</p>
+                        <div className="psi-cols" style={{ height: 56 }}>
+                          {r.daily.map(([d, sent, ok]) => (
+                            <i key={d} title={`${d}: ${sent} sent, ${ok} reset`} className={ok ? 'peak' : ''}
+                               style={{ height: `${sent / maxDay * 100}%` }} />
+                          ))}
+                        </div>
+                        <div className="psi-axis">
+                          <span>{prettyDate(r.daily[0][0])}</span>
+                          <span>{prettyDate(r.daily[r.daily.length - 1][0])}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div className="psi-scroll">
+                    <table>
+                      <thead><tr><th>Requested (UTC)</th><th>Account</th><th>Outcome</th><th className="num">Minutes</th></tr></thead>
+                      <tbody>
+                        {r.recent.map((row, i) => (
+                          <tr key={row.t + i}>
+                            <td className="dim">{timeLabel(row.t)}</td>
+                            <td>{row.email}</td>
+                            <td><span className={`psi-sev ${RESET_OUTCOME[row.outcome].cls}`} />{RESET_OUTCOME[row.outcome].label}</td>
+                            <td className="num">{row.minutesToReset ?? '–'}</td>
+                          </tr>
+                        ))}
+                        {!r.recent.length && <tr><td colSpan={4} className="dim">No links emailed yet.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </section>
+
           <section className="psi-panel psi-c6">
             <h2>Top organs</h2>
             <Bars items={data.organs} />
@@ -474,7 +563,7 @@ export default function InsightsPage() {
         </div>
 
         <div className="psi-foot">
-          Source: search-logs.txt · {fmt(o.clicks)} result opens · signup-modal events excluded from
+          Source: search-logs.txt + auth-logs.txt · {fmt(o.clicks)} result opens · signup-modal events excluded from
           search figures · generated {new Date(data.generatedAt).toLocaleString('en-GB')}
         </div>
       </div>

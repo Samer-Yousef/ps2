@@ -9,6 +9,7 @@ import {
   ipAllowed,
   recentlyRequested,
 } from '@/lib/passwordReset'
+import { logAuthEvent } from '@/lib/authLog'
 
 // Always answers with the same success body so the endpoint cannot be used to
 // discover which addresses have accounts.
@@ -27,13 +28,20 @@ export async function POST(req: Request) {
   }
 
   if (!ipAllowed(clientIp(req))) {
+    await logAuthEvent('RESET_RATE_LIMITED', email)
     return NextResponse.json({ error: 'Too many requests. Try again in a few minutes.' }, { status: 429 })
   }
 
   try {
     const user = await findUserByEmail(email)
-    if (!user) return NextResponse.json(OK)
-    if (await recentlyRequested(user.id)) return NextResponse.json(OK)
+    if (!user) {
+      await logAuthEvent('RESET_UNKNOWN_EMAIL', email)
+      return NextResponse.json(OK)
+    }
+    if (await recentlyRequested(user.id)) {
+      await logAuthEvent('RESET_COOLDOWN', user.email)
+      return NextResponse.json(OK)
+    }
 
     if (!user.passwordHash) {
       const google = await prisma.account.findFirst({ where: { userId: user.id, provider: 'google' } })
@@ -41,15 +49,23 @@ export async function POST(req: Request) {
         // Record the request so the cooldown applies to these emails too.
         await createResetToken(user.id)
         await sendGoogleAccountEmail(user.email)
+        await logAuthEvent('RESET_REQUESTED_GOOGLE', user.email)
         return NextResponse.json(OK)
       }
       // No password and no Google account: nothing sensible to send.
+      await logAuthEvent('RESET_UNKNOWN_EMAIL', user.email, 'no-password-no-google')
       return NextResponse.json(OK)
     }
 
-    const token = await createResetToken(user.id)
+    const { token, id } = await createResetToken(user.id)
     const resetUrl = `${siteUrl()}/reset-password?token=${token}`
-    await sendPasswordResetEmail(user.email, resetUrl, RESET_TOKEN_TTL_MINUTES)
+    try {
+      await sendPasswordResetEmail(user.email, resetUrl, RESET_TOKEN_TTL_MINUTES)
+    } catch (err) {
+      await logAuthEvent('RESET_SEND_FAILED', user.email, String(err).slice(0, 200))
+      throw err
+    }
+    await logAuthEvent('RESET_REQUESTED', user.email, id)
     return NextResponse.json(OK)
   } catch (err) {
     console.error('forgot-password error:', err)

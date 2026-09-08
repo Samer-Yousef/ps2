@@ -58,6 +58,7 @@ public/onnx-model/model.onnx
 # User-data logs — contain visitor IDs and account emails; never publish
 search-logs.txt
 db-logs.txt
+auth-logs.txt
 
 # v2 search data: source snapshot is a copy of the (also-ignored) compressed DB, and the
 # public/v2-data payloads are regenerated from it by scripts/prepare-v2-data.mjs.
