@@ -71,3 +71,6 @@ public/v2-data/pca_model.json
 public/v2-data/vectors.i8
 public/v2-data/*.br
 public/v2-data/*.gz
+
+# Classified slide catalogue database (server-only, built by /root/catalogue/export.py)
+/data-catalogue/
