@@ -46,7 +46,7 @@ export function CaseRow({ c, slides, showEntity, entityName, entityPath, organNa
       <span className="cat-case-main">
         <a href={c.url} target="_blank" rel="noopener noreferrer" className="ttl">{lead}</a>
         {sub && <span className="q">{sub}</span>}
-        {showEntity && entityPath && <Link href={`/catalogue/${entityPath}`} className="ent">{entityName}</Link>}
+        {showEntity && entityPath && entityName && entityName.toLowerCase() !== c.title.toLowerCase() && <Link href={`/catalogue/${entityPath}`} className="ent">{entityName}</Link>}
       </span>
       <span className="cat-case-meta">
         {meta && <span className="m">{meta}</span>}

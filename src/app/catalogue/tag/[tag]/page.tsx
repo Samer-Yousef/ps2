@@ -31,7 +31,7 @@ export default async function TagPage({ params, searchParams }: { params: Promis
       {organs.map((o) => (
         <section key={o.path} className="cat-cases">
           <h2 className="cat-h2"><Link href={`/catalogue/${o.path}`}>{o.name}</Link> <span className="ct">{fmt(o.cases.length)}</span></h2>
-          {o.cases.map((c) => <CaseRow key={c.id} c={c} slides={byCase.get(c.id)} showEntity entityName={c.entity_name} entityPath={c.entity_path} />)}
+          {o.cases.map((c) => <CaseRow key={c.id} c={c} slides={byCase.get(c.id)} showEntity entityName={c.entity_name} entityPath={c.entity_path} organName={c.organ_name} />)}
         </section>
       ))}
       <Pager base={base} total={total} page={page} source={source} />
