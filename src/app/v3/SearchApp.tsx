@@ -118,15 +118,16 @@ export default function SearchApp() {
     if (docked !== dockedRef.current) { dockedRef.current = docked; root.classList.toggle('docked', docked); }
     root.classList.toggle('pinned', p >= 1);
 
-    const mobile = vw < 820;
+    const mobile = vw <= 820;
     const baseW = rr.width;                                  // title width at REST_FONT
     const heroFont = Math.min(54, vw * 0.115);
     const curFont = REST_FONT + (heroFont - REST_FONT) * (1 - p);
     const fw = mobile ? FILTER_W_M : FILTER_W;
     const lead = fw + FGAP;                                  // horizontal room the filter takes left of the search
 
-    // ---- search box top/height (same in every layout) ----
-    const searchTop = HERO_SEARCH_TOP + ((BAR_H - DOCK_SEARCH_H) / 2 - HERO_SEARCH_TOP) * p;
+    // On mobile, dock search below the account controls so every action stays reachable.
+    const searchDockTop = (mobile ? BAR_H : 0) + (BAR_H - DOCK_SEARCH_H) / 2;
+    const searchTop = HERO_SEARCH_TOP + (searchDockTop - HERO_SEARCH_TOP) * p;
     const searchH = HERO_SEARCH_H + (DOCK_SEARCH_H - HERO_SEARCH_H) * p;
 
     // ---- hero layout: [filter][search] centred as a group; title big above ----
@@ -141,7 +142,7 @@ export default function SearchApp() {
     if (mobile) {
       // title hidden on mobile — left-align [filter][search]
       searchDockLeft = 12 + lead;
-      dockSearchW = Math.max(140, vw - searchDockLeft - 96);
+      dockSearchW = Math.max(140, vw - searchDockLeft - 12);
       titleDockLeft = 12;
     } else {
       const avail = vw - 20 - ACT_RESERVE;                  // usable band between left margin and the actions
@@ -373,7 +374,7 @@ export default function SearchApp() {
           {status !== 'loading' && (loggedIn ? (
             <>
               <a className="psv3-link" href="/dashboard">Favorites</a>
-              <button className="psv3-link auth-full" onClick={() => signOut()}>Sign out</button>
+              <button className="psv3-link" onClick={() => signOut()}>Sign out</button>
             </>
           ) : (
             <>

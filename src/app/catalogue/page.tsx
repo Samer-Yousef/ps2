@@ -1,27 +1,14 @@
 import Link from 'next/link';
-import { getRoots, getAllOrgans, getTotals, getSources } from '@/lib/catalogue';
+import { getOrganDirectory, getTotals } from '@/lib/catalogue';
 import { fmt } from './ui';
-
-export const dynamic = 'force-dynamic';
-
-export default async function CatalogueHome() {
-  const [systems, organs, totals, sources] = await Promise.all([getRoots(), getAllOrgans(), getTotals(), getSources()]);
-  return (
-    <main className="cat-main">
-      <h1 className="cat-h1">Catalogue</h1>
-      <p className="cat-lead">{fmt(totals.c)} cases, {fmt(totals.s)} slides, from {sources.map((s) => s.name).join(', ')}.</p>
-      <div className="cat-systems">
-        {systems.map((s) => (
-          <section key={s.id} className="cat-system">
-            <Link href={`/catalogue/${s.path}`} className="cat-system-h"><span>{s.name}</span><span className="ct">{fmt(s.n_cases)}</span></Link>
-            <ul>
-              {organs.filter((o) => o.parent_id === s.id).map((o) => (
-                <li key={o.id}><Link href={`/catalogue/${o.path}`} className="cat-organ"><span>{o.name}</span><span className="ct">{fmt(o.n_cases)}</span></Link></li>
-              ))}
-            </ul>
-          </section>
-        ))}
-      </div>
-    </main>
-  );
+import OrganDirectory from './organ-directory';
+export const dynamic='force-dynamic';
+export default async function CatalogueHome(){
+ const [organs,totals]=await Promise.all([getOrganDirectory(),getTotals()]);
+ return <main className="cat-main atlas-main">
+  <header className="atlas-hero"><div><p className="atlas-eyebrow">THE SLIDE COLLECTION</p><h1 className="cat-h1">Study by organ</h1><p className="atlas-intro">Choose an organ or anatomical site, starting with normal tissue, then neoplastic and non-neoplastic disease. Smaller anatomical subdivisions sit within the relevant organ page.</p></div><div className="atlas-total"><strong>{fmt(totals.s)}</strong><span>slides · {fmt(totals.c)} cases</span></div></header>
+  <nav className="cat-study-nav" aria-label="Study categories"><Link href="/catalogue/study/normal"><strong>01 · Normal histology</strong><span>Tissue architecture and physiological changes</span></Link><Link href="/catalogue/study/neoplastic"><strong>02 · Neoplastic</strong><span>WHO tumour families and entities</span></Link><Link href="/catalogue/study/non_neoplastic"><strong>03 · Non-neoplastic</strong><span>Organ-specific disease patterns</span></Link></nav>
+  <OrganDirectory organs={organs}/>
+  <p className="cat-reference">Each case appears in one main directory collection. Broader organ pages also bring their sites together. Neoplastic branches retain the WHO hierarchy. Non-neoplastic study headings draw on Pathology Outlines and supplementary source material. Original diagnoses remain visible in every case list.</p>
+ </main>;
 }

@@ -1,8 +1,12 @@
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getNodeByPath, getAncestors, getSubtree, getCasesUnder, getSlidesForCases, type Node } from '@/lib/catalogue';
+import { getNodeByPath, getRedirectByPath, getAncestors, getSubtree, getCasesUnder, getSlidesForCases, type Node } from '@/lib/catalogue';
 import { Crumbs, CaseRow, SourceChips, Pager, fmt } from '../ui';
+import OrganOverview from '../organ-overview';
+import OrganDirectory from '../organ-directory';
+import {whoHref} from '../who-outline';
+import { getOrganDirectory } from '@/lib/catalogue';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,23 +39,51 @@ export default async function NodePage({ params, searchParams }: { params: Promi
   const { all, source, page: pageStr } = await searchParams;
   const page = Math.max(1, parseInt(pageStr ?? '1', 10) || 1);
   const node = await getNodeByPath(path.join('/'));
-  if (!node) notFound();
+  if (!node) {
+    const redirect = await getRedirectByPath(path.join('/'));
+    if (redirect) {
+      const query = new URLSearchParams();
+      if (source) query.set('source', source);
+      if (all) query.set('all', all);
+      if (pageStr) query.set('page', pageStr);
+      permanentRedirect(`/catalogue/${redirect}${query.size ? `?${query}` : ''}`);
+    }
+    notFound();
+  }
   const trail = await getAncestors(node);
   const organ = trail.find((n) => n.level === 'organ');
-  const subtree = node.level === 'entity' ? [] : await getSubtree(node);
-  const listCases = node.level === 'entity' || node.level === 'subgroup' || node.level === 'group' || all === '1' || !!source;
+  if (organ && (node.authority==='WHO' || (node.parent_id===organ.id && node.kind==='neoplastic' && all!=='1' && !source && !pageStr))) {
+    const query=new URLSearchParams();if(source)query.set('source',source);if(pageStr)query.set('page',pageStr);
+    permanentRedirect(whoHref(organ.id,node.source_id??undefined)+(query.size?'?'+query:''));
+  }
+  const subtree = node.level === 'entity' || node.level === 'system' ? [] : await getSubtree(node);
+  if (node.level === 'organ' && all !== '1' && !source && !pageStr) return <OrganOverview organ={node} trail={trail} all={subtree} />;
+  if (node.level === 'system' && all !== '1' && !source && !pageStr) {
+    const organs = (await getOrganDirectory()).filter(o => o.parent_id === node.id);
+    return <main className="cat-main atlas-main"><Crumbs trail={trail.slice(0, -1)} /><h1 className="cat-h1">{node.name}</h1><p className="cat-lead">Choose an organ to open its study outline.</p><OrganDirectory organs={organs} /></main>;
+  }
+  const listCases = node.level === 'entity' || node.level === 'subgroup' || node.level === 'group' || all === '1' || !!source || !!pageStr;
   const { cases, total, sources } = listCases ? await getCasesUnder(node, { source, page }) : { cases: [], total: 0, sources: [] };
   const base = `/catalogue/${node.path}`;
   const slides = await getSlidesForCases(cases.filter((c) => c.n_slides > 1).map((c) => c.id));
   const byCase = new Map<number, typeof slides>();
   for (const s of slides) { const a = byCase.get(s.case_id) ?? []; a.push(s); byCase.set(s.case_id, a); }
-  const entityName = new Map(subtree.filter((n) => n.level === 'entity').map((n) => [n.id, n]));
+  const entityName = new Map([node, ...subtree].map((n) => [n.original_node_id ?? n.id, n]));
 
   return (
     <main className="cat-main">
       <Crumbs trail={trail.slice(0, -1)} />
       <h1 className="cat-h1">{node.name || 'General'}</h1>
       <p className="cat-lead">{fmt(node.n_cases)} cases · {fmt(node.n_slides)} slides{node.kind && node.kind !== 'mixed' ? ` · ${node.kind.replace('_', '-')}` : ''}</p>
+      {node.level === 'organ' && <nav className="cat-study-nav" aria-label="Study categories">
+        {subtree.filter(n => n.parent_id === node.id && ['normal', 'neoplastic', 'non_neoplastic'].includes(n.kind || '')).map(n => <Link key={n.id} href={`/catalogue/${n.path}`}><strong>{n.name}</strong><span>{fmt(n.n_cases)} cases · {fmt(n.n_slides)} slides</span></Link>)}
+      </nav>}
+      {node.kind === 'normal' && <p className="cat-reference">Normal tissue and physiological or developmental examples for comparison with disease. Original specimen descriptions are retained.</p>}
+      {node.kind === 'normal' && node.n_cases === 0 && <p className="cat-empty">No normal histology cases are currently available for this organ.</p>}
+      {node.authority === 'WHO' && <p className="cat-reference">WHO classification · {node.source_volume}{node.source_url && <> · <a href={node.source_url} target="_blank" rel="noopener noreferrer">View reference</a></>}. Source diagnoses and their qualifications are retained below.</p>}
+      {node.authority === 'PO' && <p className="cat-reference">Pathology Outlines · {node.source_volume}{node.source_url && <> · <a href={node.source_url} target="_blank" rel="noopener noreferrer">View reference</a></>}</p>}
+      {node.authority === 'Supplement' && node.kind !== 'normal' && <p className="cat-reference">Supplementary teaching category for non-neoplastic findings.</p>}
+      {node.authority === 'Review' && <p className="cat-reference">These source diagnoses need review before a supported classification can be assigned. All slides remain available.</p>}
       {subtree.length > 0 && <Tree root={node} all={subtree} />}
       {!listCases && node.level !== 'entity' && (
         <p className="cat-lead"><Link href={`/catalogue/${node.path}?all=1`} className="cat-link">List all {fmt(node.n_cases)} cases</Link></p>

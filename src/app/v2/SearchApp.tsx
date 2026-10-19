@@ -135,13 +135,14 @@ export default function SearchApp() {
     if (docked !== dockedRef.current) { dockedRef.current = docked; root.classList.toggle('docked', docked); }
     root.classList.toggle('pinned', p >= 1);
 
-    const mobile = vw < 820;
+    const mobile = vw <= 820;
     const baseW = rr.width;                                  // title width at REST_FONT
     const heroFont = Math.min(54, vw * 0.115);
     const curFont = REST_FONT + (heroFont - REST_FONT) * (1 - p);
 
-    // ---- search box top/height (same in every layout) ----
-    const searchTop = HERO_SEARCH_TOP + ((BAR_H - DOCK_SEARCH_H) / 2 - HERO_SEARCH_TOP) * p;
+    // On mobile, dock search below the account controls so every action stays reachable.
+    const searchDockTop = (mobile ? BAR_H : 0) + (BAR_H - DOCK_SEARCH_H) / 2;
+    const searchTop = HERO_SEARCH_TOP + (searchDockTop - HERO_SEARCH_TOP) * p;
     const searchH = HERO_SEARCH_H + (DOCK_SEARCH_H - HERO_SEARCH_H) * p;
 
     // Space for the toggle stack is reserved ALWAYS, not only while results are showing —
@@ -160,7 +161,7 @@ export default function SearchApp() {
     if (mobile) {
       // title hidden on mobile
       searchDockLeft = 12;
-      dockSearchW = Math.max(160, vw - 12 - 96 - togSpace);
+      dockSearchW = Math.max(160, vw - 24 - togSpace);
       titleDockLeft = 12;
     } else {
       const avail = vw - 20 - ACT_RESERVE;                  // usable band between left margin and the actions
@@ -570,7 +571,7 @@ export default function SearchApp() {
           {status !== 'loading' && (loggedIn ? (
             <>
               <a className="psv2-link" href="/dashboard">Favorites</a>
-              <button className="psv2-link auth-full" onClick={() => signOut()}>Sign out</button>
+              <button className="psv2-link" onClick={() => signOut()}>Sign out</button>
             </>
           ) : (
             <>

@@ -9,7 +9,7 @@ export default async function TagsPage() {
   return (
     <main className="cat-main">
       <h1 className="cat-h1">Tags</h1>
-      <p className="cat-lead">Cross-cutting filters a learner reaches for: specimen types, subject areas and lesion types that sit across many organs.</p>
+      <p className="cat-lead">Source-supported variants, differentiation patterns and a few important diagnostic features. Each case has at most three tags; other details stay with its further information.</p>
       <ul className="cat-tree d0">
         {tags.map((t) => (
           <li key={t.tag}><Link href={`/catalogue/tag/${t.tag}`} className="cat-node lvl-group"><span className="nm">{t.tag_name}</span><span className="ct">{fmt(t.n)}</span></Link></li>

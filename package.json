@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
+    "@chenglou/pretext": "^1.0.0",
     "@libsql/client": "^0.15.15",
     "@prisma/adapter-libsql": "^7.0.0",
     "@types/bcryptjs": "^2.4.6",

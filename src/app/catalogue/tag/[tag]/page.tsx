@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getCasesForTag, getSlidesForCases } from '@/lib/catalogue';
+import { getCasesForTag, getSlidesForCases, getDiagnosticTag } from '@/lib/catalogue';
 import { CaseRow, SourceChips, Pager, fmt } from '../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -21,12 +21,12 @@ export default async function TagPage({ params, searchParams }: { params: Promis
     if (!o || o.path !== c.organ_path) { o = { name: c.organ_name, path: c.organ_path, cases: [] }; organs.push(o); }
     o.cases.push(c);
   }
-  const name = tag.replace(/_/g, ' ');
+  const name = (await getDiagnosticTag(tag))?.label || tag.replace(/_/g, ' ');
   return (
     <main className="cat-main">
       <nav className="cat-crumbs"><Link href="/catalogue">Catalogue</Link><span className="sep">/</span><Link href="/catalogue/tags">Tags</Link></nav>
       <h1 className="cat-h1" style={{ textTransform: 'capitalize' }}>{name}</h1>
-      <p className="cat-lead">{fmt(total)} cases</p>
+      <p className="cat-lead">{fmt(total)} {total === 1 ? 'case' : 'cases'} with this source-supported feature.</p>
       <SourceChips base={base} sources={sources} active={source} />
       {organs.map((o) => (
         <section key={o.path} className="cat-cases">

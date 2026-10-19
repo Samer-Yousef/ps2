@@ -1,0 +1,36 @@
+/* /searchv2 additions on top of v2.css: grouped results (one block per diagnosis) */
+.psv2-group {
+  background: var(--v-surface); border: 1px solid var(--v-border); border-radius: 9px; overflow: hidden;
+}
+.psv2-group-head {
+  display: flex; align-items: baseline; gap: 10px; padding: 8px 12px 6px; min-width: 0;
+  border-bottom: 1px solid var(--v-border);
+}
+.psv2-group-head .psv2-dx { min-width: 0; }
+.psv2-group-n { flex: none; font-size: 12px; color: var(--v-muted); white-space: nowrap; }
+.psv2-group .psv2-row--sub {
+  border: none; border-radius: 0; border-top: 1px solid var(--v-border); padding: 6px 12px 6px 18px; background: transparent;
+}
+.psv2-group .psv2-row--sub:first-of-type { border-top: none; }
+.psv2-group .psv2-row--sub .psv2-meta { font-size: 13px; color: var(--v-fg); margin-top: 0; }
+.psv2-group .psv2-row--sub .psv2-meta .dx2 { color: var(--v-muted); }
+.psv2-group .psv2-row--sub:hover { background: var(--v-subtle); }
+.psv2-group-more {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  border: none; border-top: 1px solid var(--v-border); background: transparent; color: var(--v-muted);
+  font-size: 12.5px; font-weight: 500; padding: 6px 12px; transition: color .12s, background .12s;
+}
+.psv2-group-more:hover { color: var(--v-accent); background: var(--v-subtle); }
+.psv2-group-more svg { transition: transform .12s; }
+.psv2-slides { font-size: 11.5px; color: var(--v-muted); white-space: nowrap; }
+.psv2-sem-divider {
+  font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--v-muted);
+  padding: 10px 2px 2px;
+}
+@media (max-width: 820px) {
+  .psv2-group .psv2-row--sub { padding-left: 12px; }
+  .psv2-slides { display: none; }
+}
+
+/* catalogue organ/site names are already sentence-cased ("Nasal cavity, sinuses and nasopharynx") */
+.psv2--sv .psv2-meta .cap { text-transform: none; }

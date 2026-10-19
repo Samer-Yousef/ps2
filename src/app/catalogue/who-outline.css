@@ -1,0 +1,22 @@
+.who-reference-note { color:var(--mute); font-size:16px; line-height:1.5; max-width:95ch; margin:0 0 22px; }
+.who-reference-note p { margin:8px 0; }
+.who-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:start; }
+.who-card { border:1px solid var(--rule); border-radius:9px; overflow:hidden; min-width:0; }
+.who-chapter { padding:16px 18px; background:rgba(0,105,255,.035); }
+.who-volume { display:block; font:12px/1.5 Arial,sans-serif; color:var(--mute); margin-bottom:7px; }
+.who-title { display:flex; justify-content:space-between; align-items:baseline; gap:14px; }
+.who-title h3 { margin:0; font-size:23px; line-height:1.25; font-weight:400; overflow-wrap:anywhere; }
+.who-count { color:var(--mute); font:12px/1.4 Arial,sans-serif; flex-shrink:0; text-align:right; }
+.who-branches { list-style:none; margin:0; padding:5px 18px 12px; }
+.who-branches .who-branches { margin:0 0 10px 7px; padding:0 0 0 13px; border-left:1px solid var(--rule); }
+.who-heading { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:7px 0; font-size:16px; line-height:1.35; }
+.who-heading>span:first-child { min-width:0; overflow-wrap:anywhere; }
+.who-family { font-size:18px; margin-top:7px; }
+.who-empty { color:var(--mute); }
+.who-title:hover,.who-heading:hover { color:var(--acc); }
+.who-direct { margin:12px 18px; font-size:15px; }
+.who-subtree { margin:24px 0; border:1px solid var(--rule); border-radius:8px; }
+.who-card a:focus-visible,.who-subtree a:focus-visible { outline:2px solid var(--acc); outline-offset:3px; }
+.who-trail { display:flex; flex-wrap:wrap; gap:5px 12px; margin:12px 0 20px; font-size:15px; color:var(--mute); }
+@media(max-width:900px) { .who-grid { grid-template-columns:1fr; } }
+@media(max-width:480px) { .who-chapter { padding:14px; } .who-branches { padding:4px 12px 10px; } .who-title h3 { font-size:21px; } .who-heading { gap:8px; } .who-count { max-width:65px; } .who-branches .who-branches { margin-left:3px; padding-left:9px; } }

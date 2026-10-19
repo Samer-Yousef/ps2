@@ -13,7 +13,7 @@ export default function CatalogueLayout({ children }: { children: React.ReactNod
       <header className="cat-bar">
         <Link href="/" className="cat-wordmark">Pathology Search</Link>
         <nav className="cat-nav">
-          <Link href="/catalogue">Catalogue</Link>
+          <Link href="/catalogue">Organs</Link>
           <Link href="/catalogue/tags">Tags</Link>
         </nav>
       </header>

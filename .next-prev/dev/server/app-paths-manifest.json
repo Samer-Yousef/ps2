@@ -1,0 +1,5 @@
+{
+  "/api/searchv2/semantic/route": "app/api/searchv2/semantic/route.js",
+  "/api/auth/[...nextauth]/route": "app/api/auth/[...nextauth]/route.js",
+  "/searchv2/page": "app/searchv2/page.js"
+}

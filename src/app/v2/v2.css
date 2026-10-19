@@ -354,6 +354,9 @@ html.dark .psv2 .psv2-pill { background: #1c1f27; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 820px) {
+  .psv2-bar { height: 120px; }
+  .psv2-herospace { height: 108px; }
+  .psv2-actions .psv2-link:not(.auth-full) { min-height: 44px; display: inline-flex; align-items: center; }
   .auth-full { display: none; }
   .auth-compact { display: grid; }
   .psv2-actions { right: 12px; gap: 8px; }
