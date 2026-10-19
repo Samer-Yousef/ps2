@@ -82,3 +82,4 @@ public/searchv2-data/*.br
 public/searchv2-data/*.gz
 /data-searchv2/
 .next-before-*/
+.next-prev/
