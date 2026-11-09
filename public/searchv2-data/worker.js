@@ -43,6 +43,68 @@ let labelWords = null;       // words in the label, for the length-fit factor
 let ready = false;
 const fuzzyCache = new Map();
 let semAbort = null;
+let lastRows = null;         // [[ci, score]] of the last lexical pass, for flat (ungrouped) results
+const FLAT_MAX = 300;
+const LEX_W = 1.0, SEM_W = 0.5, SEM_MIN_COS = 0.35;
+const LABEL_W = 0.6;         // cases whose diagnosis label itself carries every typed word form the top tier
+   // rerank: keyword evidence dominates, cosine orders within and fills after
+let recs = null;              // differential families (recs.json) for "Also consider"
+let catOf = null, organOf = null;
+let organLex = null, systemLex = null;   // phrase -> [organ names] / [system names]
+const SEM_MIN_GROUPS = 6;     // the server-side semantic pass only runs when keywords found fewer groups than this
+const STOP = new Set(['tumour', 'tumours', 'tumor', 'tumors', 'neoplasm', 'neoplasms', 'lesion', 'lesions', 'case', 'cases', 'slide', 'slides', 'of', 'the', 'and', 'in', 'with', 'a', 'an', 'pathology', 'histology', 'histopathology']);
+// behaviour words → case category (assigned per case in the catalogue, never inferred from the diagnosis name)
+const CAT_LEX = {
+  benign: ['benign_neoplasm'], malignant: ['malignant_neoplasm'], cancer: ['malignant_neoplasm'], cancers: ['malignant_neoplasm'],
+  borderline: ['borderline_or_low_malignant_potential'], 'low malignant potential': ['borderline_or_low_malignant_potential'],
+  inflammatory: ['inflammatory'], inflammation: ['inflammatory'], inflammatory_non: ['inflammatory'],
+  infection: ['infectious'], infections: ['infectious'], infectious: ['infectious'], infective: ['infectious'],
+  normal: ['normal'], reactive: ['reactive_or_iatrogenic'], iatrogenic: ['reactive_or_iatrogenic'],
+  dysplasia: ['precursor_or_dysplasia'], dysplastic: ['precursor_or_dysplasia'], precursor: ['precursor_or_dysplasia'], premalignant: ['precursor_or_dysplasia'],
+  congenital: ['developmental_or_congenital'], developmental: ['developmental_or_congenital'],
+  degenerative: ['degenerative_or_metabolic'], metabolic: ['degenerative_or_metabolic'],
+  'non neoplastic': ['inflammatory', 'other_non_neoplastic', 'infectious', 'reactive_or_iatrogenic', 'degenerative_or_metabolic', 'developmental_or_congenital', 'vascular_or_ischaemic'],
+  neoplastic: ['benign_neoplasm', 'malignant_neoplasm', 'borderline_or_low_malignant_potential', 'precursor_or_dysplasia'],
+};
+const CAT_LABEL = { benign_neoplasm: 'Benign', malignant_neoplasm: 'Malignant', borderline_or_low_malignant_potential: 'Borderline', inflammatory: 'Inflammatory', infectious: 'Infectious', normal: 'Normal', reactive_or_iatrogenic: 'Reactive', precursor_or_dysplasia: 'Precursor / dysplasia', developmental_or_congenital: 'Developmental', degenerative_or_metabolic: 'Degenerative / metabolic', other_non_neoplastic: 'Non-neoplastic', vascular_or_ischaemic: 'Vascular' };
+// adjectives and short forms → organ names as used in the catalogue (built on top of the organ names themselves)
+const ORGAN_ADJ = {
+  ovarian: ['Ovary'], ovaries: ['Ovary'], cutaneous: ['Skin'], dermal: ['Skin'], derm: ['Skin'], mammary: ['Breast'],
+  esophageal: ['Oesophagus'], esophagus: ['Oesophagus'], goj: ['Oesophagus'], gej: ['Oesophagus'], 'gastroesophageal junction': ['Oesophagus'],
+  hepatic: ['Liver'], renal: ['Kidney'], prostatic: ['Prostate and seminal vesicles'], prostate: ['Prostate and seminal vesicles'],
+  vulval: ['Vulva and vagina'], vulvar: ['Vulva and vagina'], vaginal: ['Vulva and vagina'], vulva: ['Vulva and vagina'], vagina: ['Vulva and vagina'],
+  nodal: ['Lymph node'], 'lymph nodes': ['Lymph node'], node: ['Lymph node'], nodes: ['Lymph node'],
+  pulmonary: ['Lung'], lungs: ['Lung'], cardiac: ['Heart'], cerebral: ['Brain and spinal cord'], brain: ['Brain and spinal cord'], intracranial: ['Brain and spinal cord'], 'spinal cord': ['Brain and spinal cord'],
+  ocular: ['Eye and orbit'], eye: ['Eye and orbit'], orbit: ['Eye and orbit'], orbital: ['Eye and orbit'], conjunctiva: ['Eye and orbit'], eyelid: ['Eye and orbit'],
+  gastric: ['Stomach'], biliary: ['Gallbladder and bile ducts'], gallbladder: ['Gallbladder and bile ducts'], 'bile duct': ['Gallbladder and bile ducts'], 'bile ducts': ['Gallbladder and bile ducts'],
+  bladder: ['Bladder and urinary tract'], vesical: ['Bladder and urinary tract'], urothelial: ['Bladder and urinary tract'], urinary: ['Bladder and urinary tract'], ureter: ['Bladder and urinary tract'], urethra: ['Bladder and urinary tract'],
+  testicular: ['Testis and paratestis'], testis: ['Testis and paratestis'], testes: ['Testis and paratestis'], paratestis: ['Testis and paratestis'], epididymis: ['Testis and paratestis'],
+  cervical: ['Cervix'], splenic: ['Spleen'], osseous: ['Bone and joints'], bone: ['Bone and joints'], bones: ['Bone and joints'], joint: ['Bone and joints'], joints: ['Bone and joints'], synovium: ['Bone and joints'],
+  salivary: ['Salivary glands'], parotid: ['Salivary glands'], submandibular: ['Salivary glands'], pleural: ['Pleura'],
+  duodenal: ['Small intestine and ampulla'], duodenum: ['Small intestine and ampulla'], jejunum: ['Small intestine and ampulla'], ileum: ['Small intestine and ampulla'], ileal: ['Small intestine and ampulla'], 'small bowel': ['Small intestine and ampulla'], 'small intestine': ['Small intestine and ampulla'], ampulla: ['Small intestine and ampulla'], ampullary: ['Small intestine and ampulla'],
+  pancreatic: ['Pancreas'], penile: ['Penis and scrotum'], penis: ['Penis and scrotum'], scrotal: ['Penis and scrotum'], scrotum: ['Penis and scrotum'],
+  uterine: ['Uterus'], endometrial: ['Uterus'], endometrium: ['Uterus'], myometrium: ['Uterus'], myometrial: ['Uterus'],
+  marrow: ['Bone marrow'], sinonasal: ['Nasal cavity, sinuses and nasopharynx'], nasal: ['Nasal cavity, sinuses and nasopharynx'], nasopharynx: ['Nasal cavity, sinuses and nasopharynx'], nasopharyngeal: ['Nasal cavity, sinuses and nasopharynx'], sinus: ['Nasal cavity, sinuses and nasopharynx'],
+  thymic: ['Mediastinum and thymus'], thymus: ['Mediastinum and thymus'], mediastinal: ['Mediastinum and thymus'], mediastinum: ['Mediastinum and thymus'],
+  appendiceal: ['Appendix'], laryngeal: ['Larynx, hypopharynx and trachea'], larynx: ['Larynx, hypopharynx and trachea'], trachea: ['Larynx, hypopharynx and trachea'], tracheal: ['Larynx, hypopharynx and trachea'],
+  colonic: ['Colon and rectum'], colon: ['Colon and rectum'], rectal: ['Colon and rectum'], rectum: ['Colon and rectum'], colorectal: ['Colon and rectum'], bowel: ['Colon and rectum', 'Small intestine and ampulla'], 'large bowel': ['Colon and rectum'], intestinal: ['Colon and rectum', 'Small intestine and ampulla'],
+  anal: ['Anus'], anus: ['Anus'], tubal: ['Fallopian tube and broad ligament'], fallopian: ['Fallopian tube and broad ligament'], 'fallopian tube': ['Fallopian tube and broad ligament'],
+  jaw: ['Jaw and odontogenic'], mandible: ['Jaw and odontogenic'], mandibular: ['Jaw and odontogenic'], maxilla: ['Jaw and odontogenic'], maxillary: ['Jaw and odontogenic'], odontogenic: ['Jaw and odontogenic'], gnathic: ['Jaw and odontogenic'],
+  placental: ['Placenta and gestational'], placenta: ['Placenta and gestational'], gestational: ['Placenta and gestational'],
+  peritoneal: ['Peritoneum, mesentery and retroperitoneum'], peritoneum: ['Peritoneum, mesentery and retroperitoneum'], mesenteric: ['Peritoneum, mesentery and retroperitoneum'], mesentery: ['Peritoneum, mesentery and retroperitoneum'], retroperitoneal: ['Peritoneum, mesentery and retroperitoneum'], retroperitoneum: ['Peritoneum, mesentery and retroperitoneum'], omentum: ['Peritoneum, mesentery and retroperitoneum'],
+  'soft tissue': ['Soft tissue'], 'oral cavity': ['Oral cavity and oropharynx'], oral: ['Oral cavity and oropharynx'], tongue: ['Oral cavity and oropharynx'], mouth: ['Oral cavity and oropharynx'], oropharynx: ['Oral cavity and oropharynx'], tonsil: ['Oral cavity and oropharynx'], tonsillar: ['Oral cavity and oropharynx'],
+  pituitary: ['Pituitary'], adrenal: ['Adrenal'], parathyroid: ['Parathyroid'], paraganglia: ['Paraganglia'], ear: ['Ear and temporal bone'], 'temporal bone': ['Ear and temporal bone'],
+  thyroid: ['Thyroid'], skin: ['Skin'], breast: ['Breast'], liver: ['Liver'], kidney: ['Kidney'], kidneys: ['Kidney'], lung: ['Lung'], heart: ['Heart'], stomach: ['Stomach'], cervix: ['Cervix'], spleen: ['Spleen'], pleura: ['Pleura'], pancreas: ['Pancreas'], uterus: ['Uterus'], appendix: ['Appendix'], ovary: ['Ovary'], 'lymph node': ['Lymph node'], 'bone marrow': ['Bone marrow'], 'skeletal muscle': ['Skeletal muscle'], 'peripheral nerve': ['Peripheral nerve'], 'blood vessels': ['Blood vessels'], 'peripheral blood': ['Peripheral blood'],
+};
+const SYSTEM_ADJ = {
+  git: ['Gastrointestinal tract'], gi: ['Gastrointestinal tract'], gastrointestinal: ['Gastrointestinal tract'], gut: ['Gastrointestinal tract'], 'gi tract': ['Gastrointestinal tract'],
+  gyn: ['Female genital tract'], gynae: ['Female genital tract'], gynaecological: ['Female genital tract'], gynecologic: ['Female genital tract'], gynecological: ['Female genital tract'], 'female genital': ['Female genital tract'],
+  heme: ['Haematolymphoid'], haem: ['Haematolymphoid'], hematolymphoid: ['Haematolymphoid'], hematolymphoid_: ['Haematolymphoid'], lymphoid: ['Haematolymphoid'], hematopathology: ['Haematolymphoid'], hemepath: ['Haematolymphoid'],
+  'head and neck': ['Head and neck'], 'head neck': ['Head and neck'], ent: ['Head and neck'], endocrine: ['Endocrine'], thoracic: ['Thoracic'], cardiovascular: ['Cardiovascular'], vascular: [],
+  neuro: ['Nervous system'], neuropathology: ['Nervous system'], cns: ['Nervous system'], 'nervous system': ['Nervous system'],
+  genitourinary: ['Kidney and urinary tract', 'Male genital tract'], gu: ['Kidney and urinary tract', 'Male genital tract'], 'male genital': ['Male genital tract'],
+  musculoskeletal: ['Bone and soft tissue'], msk: ['Bone and soft tissue'], 'bone and soft tissue': ['Bone and soft tissue'], hepatobiliary: ['Liver, biliary tract and pancreas'], hpb: ['Liver, biliary tract and pancreas'], dermatopathology: ['Skin'], dermpath: ['Skin'],
+};
 
 function norm(s) {
   s = (s || '').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\x00-\x7f]/g, '').toLowerCase();
@@ -111,6 +173,8 @@ async function init() {
   progress(72, 'Indexing…', 3);
   await new Promise((r) => setTimeout(r, 0));
   buildIndex();
+  buildLexicons();
+  try { recs = await (await fetch(BASE + 'recs.json', { cache: 'no-cache' })).json(); } catch { recs = null; }
   ready = true;
   progress(100, 'Ready', 3);
   post({ type: 'dataReady', count: N, ms: Math.round(performance.now() - t0), version: manifest.version,
@@ -127,10 +191,11 @@ function buildIndex() {
     if (cur === undefined || fw > cur) m.set(ci, fw);
   };
   normD = new Array(N); popN = new Float32Array(N); sysOf = new Array(N); srcOf = new Array(N); labelWords = new Uint8Array(N);
+  catOf = new Array(N); organOf = new Array(N);
   const pmax = Math.log1p(manifest.pmax || 1);
   for (let ci = 0; ci < N; ci++) {
     const c = cases[ci];
-    normD[ci] = norm(c.d); sysOf[ci] = c.s; srcOf[ci] = c.src;
+    normD[ci] = norm(c.d); sysOf[ci] = c.s; srcOf[ci] = c.src; catOf[ci] = c.c || ''; organOf[ci] = c.o || '';
     labelWords[ci] = Math.min(255, normD[ci] ? normD[ci].split(' ').length : 1);
     popN[ci] = c.p ? Math.log1p(c.p) / pmax : 0;
     for (const [f, fw] of FIELDS) {
@@ -160,6 +225,51 @@ function buildIndex() {
     let o = postOff[i];
     for (const [ci, fw] of acc.get(words[i])) { postIds[o] = ci; postW[o] = fw; o++; }
   }
+}
+
+/* ---------------- query intent: organ / system / behaviour words taken from the case's own metadata ---------------- */
+function buildLexicons() {
+  organLex = new Map(); systemLex = new Map();
+  const addL = (lex, phrase, names) => { const k = norm(phrase); if (!k) return; const cur = lex.get(k) || []; for (const n of names) if (!cur.includes(n)) cur.push(n); lex.set(k, cur); };
+  const organs = new Set(), systems = new Set();
+  for (let ci = 0; ci < N; ci++) { if (organOf[ci]) organs.add(organOf[ci]); if (sysOf[ci]) systems.add(sysOf[ci]); }
+  for (const o of organs) {
+    addL(organLex, o, [o]);
+    // "Prostate and seminal vesicles" → prostate / seminal vesicles; "(other)" and generic parts are skipped
+    for (const part of o.replace(/\(.*?\)/g, '').split(/,| and /)) {
+      const k = norm(part);
+      if (!k || ['other', 'multiple', 'unspecified sites', 'tract', 'nerve', 'muscle', 'blood', 'vessels', 'broad ligament', 'tissue', 'sinuses', 'hypopharynx', 'temporal bone', 'seminal vesicles'].includes(k)) continue;
+      addL(organLex, k, [o]);
+    }
+  }
+  for (const [k, v] of Object.entries(ORGAN_ADJ)) if (v.every((n) => organs.has(n))) addL(organLex, k, v);
+  for (const sName of systems) addL(systemLex, sName, [sName]);
+  for (const [k, v] of Object.entries(SYSTEM_ADJ)) if (v.length && v.every((n) => systems.has(n))) addL(systemLex, k, v);
+}
+// returns { text, organs:Set|null, systems:Set|null, cats:Set|null, chips:[{kind,label,word}] }
+function parseIntent(qn) {
+  const toks = qn ? qn.split(' ') : [];
+  const used = new Uint8Array(toks.length);
+  const organs = new Set(), systems = new Set(), cats = new Set(), chips = [];
+  for (let i = 0; i < toks.length; i++) {
+    if (used[i]) continue;
+    for (let len = 3; len >= 1; len--) {
+      if (i + len > toks.length) continue;
+      let busy = false; for (let j = i; j < i + len; j++) if (used[j]) busy = true;
+      if (busy) continue;
+      const phrase = toks.slice(i, i + len).join(' ');
+      let hit = null;
+      if (organLex.has(phrase)) { hit = 'organ'; for (const o of organLex.get(phrase)) organs.add(o); chips.push({ kind: 'organ', label: organLex.get(phrase).join(' / '), word: phrase }); }
+      else if (systemLex.has(phrase)) { hit = 'system'; for (const s of systemLex.get(phrase)) systems.add(s); chips.push({ kind: 'system', label: systemLex.get(phrase).join(' / '), word: phrase }); }
+      else if (CAT_LEX[phrase]) { hit = 'category'; for (const c of CAT_LEX[phrase]) cats.add(c); chips.push({ kind: 'category', label: CAT_LEX[phrase].length === 1 ? CAT_LABEL[CAT_LEX[phrase][0]] : phrase, word: phrase }); }
+      if (hit) { for (let j = i; j < i + len; j++) used[j] = 1; break; }
+    }
+  }
+  const rest = toks.filter((t, i) => !used[i]);
+  // generic nouns carry no information once something else remains ("papillary tumours" → "papillary")
+  const content = rest.filter((t) => !STOP.has(t));
+  const text = (content.length ? content : rest.filter((t) => !['of', 'the', 'and', 'in', 'with', 'a', 'an'].includes(t))).join(' ');
+  return { text, organs: organs.size ? organs : null, systems: systems.size ? systems : null, cats: cats.size ? cats : null, chips };
 }
 
 /* ---------------- matching helpers ---------------- */
@@ -245,18 +355,26 @@ function termMatches(qn) {
 }
 
 /* ---------------- search ---------------- */
-function search(query, filters) {
-  const qn = norm(query);
+function search(query, filters, intentOut) {
+  const qfull = norm(query);
+  const intent = parseIntent(qfull);
+  if (intentOut) intentOut.intent = intent;
+  const qn = intent.text;
   const sysSet = filters && filters.sys && filters.sys.length ? new Set(filters.sys) : null;
   const srcEx = filters && filters.srcEx && filters.srcEx.length ? new Set(filters.srcEx) : null;
-  const allowed = (ci) => (!sysSet || sysSet.has(sysOf[ci])) && (!srcEx || !srcEx.has(srcOf[ci]));
+  const { organs, systems, cats } = intent;
+  const allowed = (ci) => (!sysSet || sysSet.has(sysOf[ci])) && (!srcEx || !srcEx.has(srcOf[ci]))
+    && (!organs || organs.has(organOf[ci])) && (!systems || systems.has(sysOf[ci])) && (!cats || cats.has(catOf[ci]));
 
   const scores = new Float32Array(N);
   const touched = [];
   if (!qn) {
-    // browse mode: a system filter with no text → everything in it, popular first
-    if (!sysSet) return [];
-    for (let ci = 0; ci < N; ci++) if (allowed(ci)) { scores[ci] = 0.001 + popN[ci]; touched.push(ci); }
+    // browse mode: only facets ("benign ovary", a system filter) → every matching case, biggest diagnoses first
+    if (!sysSet && !organs && !systems && !cats) return [];
+    const cnt = new Map();
+    for (let ci = 0; ci < N; ci++) if (allowed(ci)) { touched.push(ci); cnt.set(normD[ci], (cnt.get(normD[ci]) || 0) + 1); }
+    let cmax = 1; for (const v of cnt.values()) if (v > cmax) cmax = v;
+    for (const ci of touched) scores[ci] = 0.2 + 0.8 * Math.log1p(cnt.get(normD[ci])) / Math.log1p(cmax) + 0.3 * popN[ci];
     return rank(scores, touched, qn);
   }
 
@@ -304,12 +422,34 @@ function search(query, filters) {
   // length fit: a label much longer than the query is a weaker answer than the plain one
   const qw = Math.max(1, T || 1) + 0.5;   // the last token is usually still being typed
   for (const ci of touched) scores[ci] *= 0.72 + 0.28 * Math.min(1, qw / labelWords[ci]);
+  // keyword tier: the diagnosis label itself contains every typed word (last one may be a prefix) → strong preference
+  // over cases that only mention the words in a title, qualifier or attached synonym ("Leiomyoblastoma" titled GIST)
+  if (T) {
+    const labelHas = (lab, tok, last) => {
+      let i = lab.indexOf(tok);
+      while (i >= 0) {
+        const atStart = i === 0 || lab.charCodeAt(i - 1) === 32, e = i + tok.length;
+        if (atStart && (last || e === lab.length || lab.charCodeAt(e) === 32)) return true;
+        i = lab.indexOf(tok, i + 1);
+      }
+      return false;
+    };
+    // an abbreviation counts when the label spells it out ("dcis" → "ductal carcinoma in situ")
+    const alts = toks.map((t) => (vocab.abbr[t] || []).map((full) => full.split(' ')));
+    const tokHit = (lab, k) => labelHas(lab, toks[k], k === T - 1) || alts[k].some((ws) => ws.every((w) => labelHas(lab, w, false)));
+    for (const ci of touched) {
+      const lab = normD[ci]; let ok = true;
+      for (let k = 0; k < T && ok; k++) if (toks[k] && !tokHit(lab, k)) ok = false;
+      if (ok) scores[ci] *= 1 + LABEL_W;
+    }
+  }
   return rank(scores, touched, qn, allowed);
 }
 
 function rank(scores, touched, qn, allowed) {
   let max = 0;
   for (const ci of touched) if (scores[ci] > max) max = scores[ci];
+  lastRows = [];
   if (!max) return [];
   const rows = [];
   for (const ci of touched) {
@@ -319,6 +459,7 @@ function rank(scores, touched, qn, allowed) {
     rows.push([ci, s + POP_W * popN[ci] * s]);
   }
   rows.sort((a, b) => b[1] - a[1] || (cases[b[0]].n || 0) - (cases[a[0]].n || 0));
+  lastRows = rows;
   // group by diagnosis label, keeping first-seen (best) order
   const groups = new Map(); const order = [];
   let ncases = 0;
@@ -344,12 +485,12 @@ function card(ci, s) {
 }
 
 /* ---------------- semantic upgrade (server) ---------------- */
-async function semantic(query, filters, searchId, lexical) {
+async function semantic(query, filters, searchId, lexical, rec, intent) {
   if (semAbort) semAbort.abort();
   const ac = new AbortController(); semAbort = ac;
   let data;
   try {
-    const r = await fetch('/api/searchv2/semantic?q=' + encodeURIComponent(query) + '&k=120', { signal: ac.signal });
+    const r = await fetch('/api/searchv2/semantic?q=' + encodeURIComponent(intent.text || query) + '&k=120', { signal: ac.signal });
     if (!r.ok) return;
     data = await r.json();
   } catch { return; }
@@ -364,6 +505,9 @@ async function semantic(query, filters, searchId, lexical) {
     const ci = idToIdx.get(id); if (ci === undefined) continue;
     if (sysSet && !sysSet.has(sysOf[ci])) continue;
     if (srcEx && srcEx.has(srcOf[ci])) continue;
+    if (intent.organs && !intent.organs.has(organOf[ci])) continue;
+    if (intent.systems && !intent.systems.has(sysOf[ci])) continue;
+    if (intent.cats && !intent.cats.has(catOf[ci])) continue;
     const key = normD[ci];
     if (seen.has(key)) continue;
     let g = extra.get(key);
@@ -371,10 +515,92 @@ async function semantic(query, filters, searchId, lexical) {
     g.total++; if (g.cases.length < 6) g.cases.push(card(ci, sc));
   }
   if (!order.length) return;
-  post({ type: 'results', searchId, query, groups: lexical.concat(order), mode: 'semantic', ms: data.ms });
+  post({ type: 'results', searchId, query, groups: lexical.concat(order), mode: 'semantic', ms: data.ms, intent: { text: intent.text, chips: intent.chips }, recs: rec });
+}
+/* ---------------- flat (ungrouped) results: one row per case, like the home page ---------------- */
+function flatLexical(rows, browse) {
+  if (!browse) return rows.slice(0, FLAT_MAX).map(([ci, s]) => card(ci, s));
+  // browse (facets only): no keyword to rank on, so interleave diagnoses round-robin instead of 40 teratomas first
+  const byLabel = new Map(); const order = [];
+  for (const [ci, s] of rows) { let l = byLabel.get(normD[ci]); if (!l) { l = []; byLabel.set(normD[ci], l); order.push(l); } l.push([ci, s]); }
+  const out = [];
+  for (let i = 0; out.length < FLAT_MAX && order.some((l) => i < l.length); i++) for (const l of order) if (i < l.length && out.length < FLAT_MAX) out.push(card(l[i][0], l[i][1]));
+  return out;
+}
+
+// Vector search + keyword rerank. Every case gets lexical evidence (exact word > prefix > fuzzy, from the keyword
+// pass) and cosine similarity (server MiniLM vectors). Keyword evidence is weighted so that any case carrying the
+// typed words outranks cases that are merely about something similar ("mesothelioma" beats "mesothelium" and
+// "mesoappendix"); cosine orders cases within the same keyword tier and fills the tail with semantic neighbours.
+async function semanticFlat(query, filters, searchId, rows, rec, intent) {
+  if (semAbort) semAbort.abort();
+  const ac = new AbortController(); semAbort = ac;
+  let data;
+  try {
+    const r = await fetch('/api/searchv2/semantic?q=' + encodeURIComponent(intent.text || query) + '&k=300', { signal: ac.signal });
+    if (!r.ok) return;
+    data = await r.json();
+  } catch { return; }
+  if (ac.signal.aborted) return;
+  const sysSet = filters && filters.sys && filters.sys.length ? new Set(filters.sys) : null;
+  const srcEx = filters && filters.srcEx && filters.srcEx.length ? new Set(filters.srcEx) : null;
+  const allowed = (ci) => (!sysSet || sysSet.has(sysOf[ci])) && (!srcEx || !srcEx.has(srcOf[ci]))
+    && (!intent.organs || intent.organs.has(organOf[ci])) && (!intent.systems || intent.systems.has(sysOf[ci])) && (!intent.cats || intent.cats.has(catOf[ci]));
+  const idToIdx = idIndex();
+  const cos = new Map();
+  for (const [id, sc] of data.hits || []) { const ci = idToIdx.get(id); if (ci !== undefined && sc >= SEM_MIN_COS && allowed(ci)) cos.set(ci, sc); }
+  const lex = new Map();
+  let lmax = 0; for (const [, s] of rows) if (s > lmax) lmax = s;
+  for (const [ci, s] of rows) lex.set(ci, lmax ? s / lmax : 0);
+  const fused = [];
+  for (const [ci, l] of lex) fused.push([ci, LEX_W * l + SEM_W * (cos.get(ci) || 0)]);
+  for (const [ci, c] of cos) if (!lex.has(ci)) fused.push([ci, SEM_W * c]);
+  fused.sort((a, b) => b[1] - a[1] || (cases[b[0]].n || 0) - (cases[a[0]].n || 0));
+  const out = fused.slice(0, FLAT_MAX).map(([ci, s]) => { const c = card(ci, s); if (!lex.has(ci)) c.sem = true; return c; });
+  post({ type: 'results', searchId, query, cases: out, mode: 'semantic', ms: data.ms, intent: { text: intent.text, chips: intent.chips }, recs: rec });
 }
 let _idIndex = null;
 function idIndex() { if (!_idIndex) { _idIndex = new Map(); for (let ci = 0; ci < N; ci++) _idIndex.set(cases[ci].i, ci); } return _idIndex; }
+
+/* ---------------- recommendations: other members of the differential family the top result belongs to ---------------- */
+function recommend(groups, intent, qfull) {
+  if (!recs || !recs.families.length) return null;
+  // seeds: the top result's diagnosis, then the typed text. Browse-only queries ("benign ovary") get no recommendations.
+  if (!intent.text) return null;
+  const seeds = [];
+  if (groups.length) seeds.push(norm(groups[0].d));
+  seeds.push(intent.text);
+  if (qfull !== intent.text) seeds.push(qfull);
+  const memberHit = (m, k) => k === m.key || k.startsWith(m.key + ' ');
+  // one family: the one whose matched member sits earliest in its curated list (core WHO entities come first,
+  // Pathology Outlines differentials last), then the longer match; anchors (popular queries) break remaining ties
+  let best = null;
+  for (const f of recs.families) {
+    for (let i = 0; i < f.members.length; i++) {
+      const m = f.members[i];
+      for (const k of seeds) {
+        if (!memberHit(m, k)) continue;
+        const cand = { f, seed: m, idx: i, len: m.key.length, anchored: f.anchors.includes(intent.text) || f.anchors.includes(qfull) };
+        if (!best || cand.idx < best.idx || (cand.idx === best.idx && cand.len > best.len)) best = cand;
+      }
+    }
+  }
+  if (!best) {
+    const f = recs.families.find((x) => x.anchors.includes(intent.text) || x.anchors.includes(qfull));
+    if (!f) return null;
+    best = { f, seed: null };
+  }
+  const shown = new Set(groups.slice(0, 3).map((g) => norm(g.d)));
+  const items = [];
+  for (const m of best.f.members) {
+    if (best.seed && m.key === best.seed.key) continue;
+    if (shown.has(m.key)) continue;
+    items.push({ name: m.name, key: m.key, n: m.n, family: best.f.name });
+    if (items.length >= 12) break;
+  }
+  if (!items.length) return null;
+  return { family: best.f.name, seed: best.seed ? best.seed.name : null, items };
+}
 
 self.onmessage = async (ev) => {
   const m = ev.data || {};
@@ -382,8 +608,19 @@ self.onmessage = async (ev) => {
   if (m.type === 'search') {
     if (!ready) return;
     const t0 = performance.now();
-    const groups = search(m.query || '', m.filters);
-    post({ type: 'results', searchId: m.searchId, query: m.query, groups, mode: 'lexical', ms: Math.round((performance.now() - t0) * 10) / 10 });
-    if (m.semantic && norm(m.query)) semantic(m.query, m.filters, m.searchId, groups);
+    const io = {};
+    const groups = search(m.query || '', m.filters, io);
+    const intent = io.intent || { text: norm(m.query || ''), chips: [] };
+    const rec = recommend(groups, intent, norm(m.query || ''));
+    if (m.flat) {
+      const rows = lastRows || [];
+      post({ type: 'results', searchId: m.searchId, query: m.query, cases: flatLexical(rows, !intent.text), mode: 'lexical',
+        ms: Math.round((performance.now() - t0) * 10) / 10, intent: { text: intent.text, chips: intent.chips }, recs: rec });
+      if (m.semantic && intent.text) semanticFlat(m.query, m.filters, m.searchId, rows, rec, intent);
+      return;
+    }
+    post({ type: 'results', searchId: m.searchId, query: m.query, groups, mode: 'lexical', ms: Math.round((performance.now() - t0) * 10) / 10,
+      intent: { text: intent.text, chips: intent.chips }, recs: rec });
+    if (m.semantic && intent.text && groups.length < SEM_MIN_GROUPS) semantic(m.query, m.filters, m.searchId, groups, rec, intent);
   }
 };

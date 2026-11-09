@@ -44,5 +44,5 @@ export async function getOrganZoom(organId: number): Promise<ZNode> {
     } else if (n.children) z.children = n.children.map((k) => convert(k, n));
     return z;
   };
-  return { id: `o${organId}`, name: organ.name, cases: organ.n_cases, kind: 'organ', children: modes.map((m) => convert(m, null)) };
+  return { id: `o${organId}`, name: organ.name, cases: organ.n_cases, kind: 'organ', children: modes.filter((m) => m.kind === 'mode').map((m) => convert(m, null)) };  // sub-view links are catv2-only
 }

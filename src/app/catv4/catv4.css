@@ -1,0 +1,62 @@
+/* /catv4 — outline tree with guide lines. Shell, search, tabs, slides and case pane reuse catv2.css; only the tree is new.
+   Hierarchy is carried by size, not colour: each level steps the type size down (SHRINK per level from TOP), open headings
+   are bold, the selected row is black weight. Guide lines are one neutral style; the path to the selection is the same line, darker.
+   Geometry: ROW 36px rows (one line each; sticky stack offsets are multiples of it), STEP indent per level, RAIL x of a level's line. */
+.cv4 { --row: 36px; --step: 26px; --rail: 11px; --top: 30px; --shrink: 4px; --min: 14px; --leaf: #1d4ed8; --line: var(--rule); --line-on: color-mix(in srgb, var(--ink) 55%, transparent); }
+.t4-tree { padding: 2px 6px 70vh 4px; position: relative; }
+.t4-list { list-style: none; margin: 0; padding: 0; position: relative; }
+.t4-branch > .t4-list { margin-left: var(--step); }
+.t4-item { position: relative; }
+.t4-row { position: relative; display: flex; align-items: center; gap: 6px; height: var(--row); padding: 0 8px 0 2px; border-radius: 8px; cursor: pointer; transition: background .14s; user-select: none; }
+.t4-row:hover { background: var(--soft); }
+.t4-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+/* the rails: every item draws its level's vertical line down its whole height (so the line continues past an open
+   child's branch to the next sibling) and a short tick into its own row; the last sibling stops its line at the tick. */
+.t4-item::before { content: ""; position: absolute; left: var(--rail); top: 0; bottom: 0; width: 2px; background: var(--line); border-radius: 1px; pointer-events: none; }
+.t4-item.last::before { bottom: auto; height: calc(var(--row) / 2); }
+.t4-row::before { content: ""; position: absolute; left: calc(var(--rail) + 2px); top: calc(var(--row) / 2 - 1px); width: 10px; height: 2px; background: var(--line); pointer-events: none; }
+.t4-tree > .t4-list > .t4-item::before, .t4-tree > .t4-list > .t4-item > .t4-row::before { display: none; } /* the top level has nothing above it */
+/* the path to the selection is the same line, darker: the branch you are in reads as the strong line */
+.t4-item.path::before, .t4-item.path > .t4-row::before, .t4-item.sel::before, .t4-item.sel > .t4-row::before { background: var(--line-on); }
+.t4-item.sel.open > .t4-branch > .t4-list > .t4-item::before, .t4-item.sel.open > .t4-branch > .t4-list > .t4-item > .t4-row::before { background: var(--line-on); }
+
+/* open headings freeze at the top, one line per level; the frozen stack is the branch you are in */
+.t4-item.open > .t4-row { position: sticky; top: calc(var(--d, 0) * var(--row)); z-index: calc(20 - var(--d, 0)); background: var(--surface); border-radius: 0; box-shadow: 0 1px 0 var(--rule); }
+.t4-item.open > .t4-row:hover { background: color-mix(in srgb, var(--soft) 70%, var(--surface)); }
+.t4-item.open > .t4-row .t4-name { font-weight: 700; }
+.t4-item.sel > .t4-row { background: var(--soft); }
+.t4-item.sel.open > .t4-row { background: color-mix(in srgb, var(--soft) 80%, var(--surface)); }
+.t4-item.sel > .t4-row .t4-name { font-weight: 900; color: var(--ink); letter-spacing: -.005em; }
+.t4-item.sel > .t4-row .t4-chev, .t4-item.sel > .t4-row .t4-count { color: var(--ink); }
+
+.t4-chev { flex: 0 0 22px; height: 22px; margin-left: calc(var(--rail) + 8px); display: grid; place-items: center; border-radius: 6px; color: var(--mute); transition: transform .22s var(--spring), color .2s; }
+.t4-item.open > .t4-row > .t4-chev { transform: rotate(90deg); color: var(--ink); }
+.t4-chev.dot::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .55; }
+/* type size steps down one notch per level and bottoms out at --min, so depth is read at a glance */
+.t4-name { flex: 1 1 auto; min-width: 0; font-size: max(var(--min), calc(var(--top) - var(--d, 0) * var(--shrink))); line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.t4-item.leaf > .t4-row .t4-name { font-size: var(--min); color: var(--leaf); } /* terminal leaves: fixed size, blue */
+html.dark .cv4 { --leaf: #7fa6ff; }
+.t4-note { color: var(--mute); font-size: 12.5px; font-weight: 400; }
+.t4-kids { flex: 0 0 auto; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 10.5px; line-height: 16px; padding: 0 6px; border-radius: 999px; background: var(--soft); color: var(--mute); font-variant-numeric: tabular-nums; }
+.t4-count { flex: 0 0 48px; text-align: right; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12.5px; color: var(--mute); font-variant-numeric: tabular-nums; }
+.t4-count.zero { color: color-mix(in srgb, var(--mute) 50%, transparent); }
+.t4-open { display: none; }
+.t4-branch { position: relative; }
+.t4-loading { padding: 6px 0 6px calc(var(--step) + 26px); color: var(--mute); font-size: 13px; }
+.t4-ghost .t4-name { color: var(--mute); font-size: 13.5px; font-family: ui-sans-serif, system-ui, sans-serif; }
+.t4-ghost .t4-chev { font-size: 15px; }
+.t4-item.k-volume > .t4-row .t4-name { color: var(--ink-2); font-style: italic; }
+.cv4 .cv2-slides { margin: 2px 6px 6px calc(var(--step) + var(--rail) + 10px); }
+.cv4 .cv2-left { overflow-anchor: auto; }
+
+@media (max-width: 640px) {
+  .cv4 { --step: 18px; --rail: 8px; --top: 25px; --shrink: 2.75px; --min: 14px; }
+  .t4-count { flex-basis: 42px; }
+}
+
+/* no case pane: slides open inline under their heading, so the tree is the whole page (centred column on wide screens) */
+.cv4 .t4-shell { grid-template-columns: 1fr; }
+.cv4 .t4-shell > .cv2-left { border-right: 0; }
+.cv4 .cv2-top, .cv4 .cv2-tabs, .cv4 .t4-tree { max-width: 880px; margin-left: auto; margin-right: auto; }
+.cv4 .cv2-tabs { box-sizing: border-box; width: 100%; }

@@ -5,19 +5,22 @@
 // Open rows are sticky: as you scroll into a branch its heading freezes at the top, and each deeper open heading
 // stacks under the one above, so the frozen stack is the path you are on.
 // On a phone the case pane slides in over the tree and a bottom bar brings it back.
+// A terminal leaf opens its slides in place, in a compact list that scrolls after ten rows; the right pane then keeps the parent category.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { prepare, layout, measureNaturalWidth, type PreparedText } from '@chenglou/pretext';
 import type { TNode, TCase } from '@/lib/catv2';
 
 // ---- geometry (keep in sync with catv2.css) ----
 const LH = 20, PLH = 16, PAD = 9, CHEV = 22, GAP = 8;
-// indent steps shrink past the organ/mode levels so deep WHO entities keep a readable label width
+// indent steps grow with depth (desktop 32, 40, 48…; compact 18, 21, 24…), so each level sits further in than the last
 const indentFor = (depth: number, compact: boolean) =>
-  compact ? Math.min(depth, 2) * 12 + Math.max(0, depth - 2) * 8 : Math.min(depth, 4) * 16 + Math.max(0, depth - 4) * 10;
+  compact ? depth * 18 + 1.5 * depth * (depth - 1) : depth * 32 + 4 * depth * (depth - 1);
+const MIN_LABEL = 110; // the deepest levels stop indenting rather than squeeze a label below this
 const geo = (compact: boolean) => (compact ? { side: 8, count: 44 } : { side: 10, count: 50 });
 const fmt = (n: number) => n.toLocaleString('en-GB');
 const ease = 'cubic-bezier(.2,.9,.25,1)';
 const PAGE = 60;
+const SLIDE_ROW = 29, SLIDE_PILL_GAP = 3, SLIDE_ROWS = 10, SLIDE_CARD = 20, SLIDE_HEAD = 20; // keep in sync with catv2.css
 // one hue per organ, cycling so neighbouring organs never share one; nested branches compound the tint
 const HUES = [214, 160, 28, 338, 268, 96];
 const isSys = (id: string) => /^s\d+$/.test(id);
@@ -74,12 +77,13 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
   const [sys, setSys] = useState<string>(() => { const f = initial?.split('.')[0]; return f && isSys(f) && root.some((r) => r.id === f) ? f : root[0]?.id ?? ''; });
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [sel, setSel] = useState<string | null>(null);
+  const [leaf, setLeaf] = useState<string | null>(null); // the leaf whose slides are open; only ever the selected row
   const [paneIn, setPaneIn] = useState(false);
   const [, setLoadedOrgans] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState<Set<string>>(() => new Set());
   const [showEmpty, setShowEmpty] = useState<Set<string>>(() => new Set());
   const [width, setWidth] = useState(0);
-  const [mobile, setMobile] = useState(false);
+  const [, setMobile] = useState(false);
   const [measurer, setMeasurer] = useState<Measurer | null>(null);
   const [pulse, setPulse] = useState<string | null>(null);
   const [q, setQ] = useState('');
@@ -118,7 +122,11 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
   }, []);
 
   // ---- predicted row heights ----
-  const labelWidth = useCallback((depth: number) => { const g = geo(compact); return width - g.side * 2 - indentFor(depth, compact) - CHEV - GAP * 2 - g.count; }, [width, compact]);
+  const indent = useCallback((depth: number) => {
+    const g = geo(compact), raw = indentFor(depth, compact);
+    return width ? Math.min(raw, Math.max(0, width - g.side * 2 - CHEV - GAP * 2 - g.count - MIN_LABEL)) : raw;
+  }, [width, compact]);
+  const labelWidth = useCallback((depth: number) => { const g = geo(compact); return width - g.side * 2 - indent(depth) - CHEV - GAP * 2 - g.count; }, [width, compact, indent]);
   const rowHeight = useCallback((n: TNode, depth: number, isOpen: boolean) => {
     const lines = measurer ? measurer.lines(n.name, labelWidth(depth)) : 1;
     const hasPreview = !isOpen && !!n.children?.length;
@@ -217,7 +225,9 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
   const select = useCallback((id: string, slideIn: boolean) => { setSel(id); syncUrl(chainOf(id)); if (slideIn) setPaneIn(true); }, [chainOf, syncUrl]);
   const toggle = useCallback(async (id: string) => {
     const n = nodes.current.get(id); if (!n) return;
-    if (n.leaf) { select(id, mobile); return; }                       // a leaf has no branch: it just becomes the selection
+    // moving away from an open leaf folds its slides at once, so the tapped row does not jump
+    if (sel && sel !== id && sel === leaf) { const r = rowTop(id); fold.current = true; holdAt.current = r ? { id, top: r.top } : null; }
+    if (n.leaf) { setLeaf(sel === id && leaf === id ? null : id); select(id, false); return; }
     if (open.has(id)) { close(id); select(id, false); return; }
     if (n.lazy) await ensureOrgan(id);
     if (n.kind === 'organ') {
@@ -233,7 +243,7 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
     setOpen((s) => new Set(s).add(id));
     select(id, false);
     requestAnimationFrame(() => reveal(id));
-  }, [open, close, ensureOrgan, rowTop, reveal, organOf, select, mobile]);
+  }, [open, close, ensureOrgan, rowTop, reveal, organOf, select, sel, leaf]);
   const jumpTo = useCallback(async (chain: string[]) => {
     for (const id of chain) {
       const n = nodes.current.get(id); if (!n) break;
@@ -246,7 +256,7 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
       await new Promise((r) => setTimeout(r, 40));
     }
     const last = chain[chain.length - 1];
-    if (nodes.current.has(last)) { setSel(last); syncUrl(chain); }
+    if (nodes.current.has(last)) { setSel(last); if (nodes.current.get(last)?.leaf) setLeaf(last); syncUrl(chain); }
     setTimeout(() => { scrollToRow(last, true); setPulse(last); setTimeout(() => setPulse(null), 1400); }, 120);
   }, [ensureOrgan, syncUrl, scrollToRow]);
   const pickSys = useCallback((id: string) => {
@@ -322,7 +332,7 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
     const { shown, hidden } = owner ? visibleChildren(owner) : { shown: list, hidden: [] as TNode[] };
     const anyOpen = shown.some((k) => open.has(k.id));
     const g = geo(compact);
-    const step = depth > 0 ? indentFor(depth, compact) - indentFor(depth - 1, compact) : 0;
+    const step = depth > 0 ? indent(depth) - indent(depth - 1) : 0;
     return (
       <ul className={`cv2-list${anyOpen ? ' has-open' : ''}`} style={{ '--step': `${step}px` } as React.CSSProperties}>
         {shown.map((n, i) => {
@@ -333,7 +343,7 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
           const tint: Record<string, string> = !isOpen ? {} : depth === 0 ? { '--wash': '16%', '--band': '16%' } : { '--wash': `${Math.round((1 - 0.93 ** depth) * 100)}%`, '--band': `${Math.round((1 - 0.93 ** (depth - 1) * 0.83) * 100)}%` };
           return (
             <li key={n.id} className={`cv2-item${isOpen ? ' open' : ''}${sel === n.id ? ' sel' : ''}${selChain.has(n.id) && sel !== n.id ? ' path' : ''}${pulse === n.id ? ' pulse' : ''} k-${n.kind ?? 'x'}${n.mode ? ' m-' + n.mode : ''}`} style={{ '--i': Math.min(i, 8), '--d': depth, ...tint, ...(n.kind === 'organ' ? { '--hue': hueOf(n.id) ?? HUES[i % HUES.length] } : {}) } as React.CSSProperties}>
-              <button ref={setRowRef(n.id)} className="cv2-row" style={{ paddingLeft: g.side }} onClick={() => toggle(n.id)} aria-expanded={n.leaf ? undefined : isOpen} aria-current={sel === n.id ? 'true' : undefined}>
+              <button ref={setRowRef(n.id)} className="cv2-row" style={{ paddingLeft: g.side }} onClick={() => toggle(n.id)} aria-expanded={n.leaf ? sel === n.id && leaf === n.id : isOpen} aria-current={sel === n.id ? 'true' : undefined}>
                 {n.leaf
                   ? <span className="cv2-chev dot" aria-hidden="true" />
                   : <span className={`cv2-chev${busy ? ' busy' : ''}`} aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg></span>}
@@ -343,6 +353,9 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
                 </span>
                 <span className={`cv2-count${n.cases ? '' : ' zero'}`}>{n.cases ? fmt(n.cases) : '·'}</span>
               </button>
+              {n.leaf && (
+                <Collapse open={sel === n.id && leaf === n.id} instant={fold.current} height={slidesHeight(n.cases)} refCb={setBranchRef(n.id)} render={() => <LeafSlides id={n.id} name={n.name} count={n.cases} />} />
+              )}
               {!n.leaf && (
                 <Collapse open={isOpen} instant={fold.current} height={isOpen ? branchHeight(n, depth) : 0} refCb={setBranchRef(n.id)} render={() => renderList(n.children ?? [], depth + 1, n)} />
               )}
@@ -363,9 +376,11 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
 
   const sysNode = nodes.current.get(sys) ?? null;
   const selChain = useMemo(() => new Set(sel ? chainOf(sel) : []), [sel, chainOf]);
-  const paneHue = hueOf(sel);
   const selNode = sel ? nodes.current.get(sel) ?? null : null;
-  const selCrumbs = sel ? chainOf(sel).slice(0, -1).map((id) => nodes.current.get(id)?.name ?? '').filter((n, i, a) => n && n !== a[i - 1]) : [];
+  const paneId = selNode?.leaf ? parent.current.get(selNode.id) ?? null : sel; // a leaf shows its slides in the tree
+  const paneNode = paneId ? nodes.current.get(paneId) ?? null : null;
+  const paneHue = hueOf(paneId);
+  const selCrumbs = paneId ? chainOf(paneId).slice(0, -1).map((id) => nodes.current.get(id)?.name ?? '').filter((n, i, a) => n && n !== a[i - 1]) : [];
   return (
     <div className={`cv2-shell${paneIn ? ' pane-in' : ''}`}>
       <div className="cv2-left" ref={scroller}>
@@ -410,13 +425,58 @@ export default function Tree({ root, initial, total }: { root: TNode[]; initial:
           <div key={sys} className="cv2-sys" ref={sysEl}>{sysNode ? renderList(sysNode.children ?? [], 0, sysNode) : null}</div>
         </div>
       </div>
-      <CasePane node={selNode} crumbs={selCrumbs} hue={paneHue} onBack={() => setPaneIn(false)} />
-      {selNode && selNode.cases > 0 && (
+      <CasePane node={paneNode} crumbs={selCrumbs} hue={paneHue} onBack={() => setPaneIn(false)} />
+      {selNode && !selNode.leaf && selNode.cases > 0 && (
         <button className="cv2-selbar" onClick={() => setPaneIn(true)} aria-label={`Show ${fmt(selNode.cases)} cases of ${selNode.name}`}>
           <span className="cv2-selbar-name">{selNode.name}</span>
           <span className="cv2-selbar-n">{fmt(selNode.cases)} {selNode.cases === 1 ? 'case' : 'cases'} ›</span>
         </button>
       )}
+    </div>
+  );
+}
+
+const slidesListHeight = (count: number) => Math.min(Math.max(count, 1), SLIDE_ROWS) * SLIDE_ROW - SLIDE_PILL_GAP;
+const slidesHeight = (count: number) => slidesListHeight(count) + SLIDE_CARD + (count > SLIDE_ROWS ? SLIDE_HEAD : 0);
+const slideCache = new Map<string, CaseData>();
+
+/** A leaf's slides inside the tree: one line per case, ten rows tall, loading further pages as it scrolls. */
+function LeafSlides({ id, name, count }: { id: string; name: string; count: number }) {
+  const [data, setData] = useState<CaseData | null>(() => slideCache.get(id) ?? null);
+  const [failed, setFailed] = useState(false);
+  const busy = useRef(false);
+  const load = useCallback(async (page: number) => {
+    if (busy.current) return; busy.current = true;
+    try {
+      const r = await fetch(`/api/catv2/cases?id=${encodeURIComponent(id)}&page=${page}`); if (!r.ok) throw new Error(String(r.status));
+      const d: CaseData = await r.json();
+      const prev = page > 1 ? slideCache.get(id) : null;
+      const next = { cases: prev ? [...prev.cases, ...d.cases] : d.cases, total: d.total };
+      slideCache.set(id, next); setData(next);
+    } catch { setFailed(true); } finally { busy.current = false; }
+  }, [id]);
+  useEffect(() => { if (count > 0 && !slideCache.has(id)) load(1); }, [id, count, load]);
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (data && data.cases.length < data.total && el.scrollTop + el.clientHeight > el.scrollHeight - SLIDE_ROW * 3) load(Math.floor(data.cases.length / PAGE) + 1);
+  };
+  return (
+    <div className="cv2-slides">
+      {count > SLIDE_ROWS && <div className="cv2-slides-n">{fmt(count)} cases</div>}
+      <div className="cv2-slides-list" style={{ height: slidesListHeight(count) }} onScroll={onScroll}>
+      {count === 0 && <span className="cv2-slide-note">No slides filed here</span>}
+      {failed && !data && <span className="cv2-slide-note">Couldn’t load these slides</span>}
+      {data?.cases.map((c) => (
+        <a key={c.id} className="cv2-slide" href={c.url} target="_blank" rel="noopener noreferrer">
+          {/* a title that only repeats the leaf's name gives way to what tells the cases apart */}
+          {c.title.trim().toLowerCase() !== name.trim().toLowerCase()
+            ? <span className="cv2-slide-title">{c.title}{c.qualifiers && <span className="cv2-qual"> {c.qualifiers}</span>}</span>
+            : c.qualifiers && <span className="cv2-slide-title">{c.qualifiers}</span>}
+          <span className="cv2-slide-meta">{[c.source, [c.age, c.sex].filter(Boolean).join(' '), c.site].filter((x) => x && String(x).trim()).join(' · ')}</span>
+          {c.n_slides > 1 && <span className="cv2-slide-n">×{c.n_slides}</span>}
+        </a>
+      ))}
+      </div>
     </div>
   );
 }
